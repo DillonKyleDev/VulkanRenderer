@@ -1,0 +1,20 @@
+.vs
+.sln
+
+.vs
+.sln
+.vcxproj
+.filters
+.user
+
+Vulkan\ Renderer.sln
+/vendors
+/Binaries
+/Premake/Binaries
+
+Vulkan-Core/Vulkan-Core.vcxproj
+Vulkan-Core/Vulkan-Core.vcxproj.filters
+Vulkan-Core/Vulkan-Core.vcxproj.user
+Vulkan-Runtime/Vulkan-Runtime.vcxproj
+Vulkan-Runtime/Vulkan-Runtime.vcxproj.filters
+Vulkan-Runtime/Vulkan-Runtime.vcxproj.user
