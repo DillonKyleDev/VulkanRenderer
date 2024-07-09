@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{56EB95D1-428D-C0A7-2B48-D4FB178947F8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendors">
+      <UniqueIdentifier>{86EAAF72-F2C9-2E0E-FBE1-B9E46740956F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendors\glfw">
+      <UniqueIdentifier>{0542528B-F1A4-E12F-9A2A-1AE6866CADB2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vendors\glfw\lib-vc2022">
+      <UniqueIdentifier>{174DF751-8384-3FE9-8C8E-A30CF84466E2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\Vulkan-Runtime.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\vendors\glfw\lib-vc2022\glfw3.dll">
+      <Filter>vendors\glfw\lib-vc2022</Filter>
+    </None>
+    <None Include="..\vendors\glfw\lib-vc2022\glfw3.lib">
+      <Filter>vendors\glfw\lib-vc2022</Filter>
+    </None>
+    <None Include="..\vendors\glfw\lib-vc2022\glfw3_mt.lib">
+      <Filter>vendors\glfw\lib-vc2022</Filter>
+    </None>
+    <None Include="..\vendors\glfw\lib-vc2022\glfw3dll.lib">
+      <Filter>vendors\glfw\lib-vc2022</Filter>
+    </None>
+  </ItemGroup>
+</Project>
