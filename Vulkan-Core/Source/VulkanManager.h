@@ -2,11 +2,14 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <glfw3.h>
+#include <glm.hpp>
 
 // standard library
 #include <iostream>
 #include <vector>
 #include <optional>
+#include <array>
+
 
 namespace VCore
 {
@@ -76,6 +79,40 @@ namespace VCore
             std::vector<VkPresentModeKHR> presentModes;
         };
 
+
+        // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Vertex_input_description
+        struct Vertex {
+            glm::vec2 pos;
+            glm::vec3 color;
+
+            static VkVertexInputBindingDescription getBindingDescription()
+            {
+                // The binding parameter specifies the index of the binding in the array of bindings. The stride parameter specifies the number of bytes from one entry to the next
+                VkVertexInputBindingDescription bindingDescription{};
+                bindingDescription.binding = 0;
+                bindingDescription.stride = sizeof(Vertex);
+                bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+                return bindingDescription;
+            };
+
+            static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+                // describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description
+                std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+                attributeDescriptions[0].binding = 0;
+                attributeDescriptions[0].location = 0;
+                attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+                attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+                attributeDescriptions[1].binding = 0;
+                attributeDescriptions[1].location = 1;
+                attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+                attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+                return attributeDescriptions;
+            };
+        };
+
         VulkanManager();
         ~VulkanManager();
         void run(bool &_quit);
@@ -103,6 +140,8 @@ namespace VCore
         // Swap extent (resolution of images in swap chain)
         VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
         void createSwapChain();
+        void recreateSwapChain();
+        void cleanupSwapChain();
         void createImageViews();
         void createFramebuffers();
 
@@ -112,10 +151,17 @@ namespace VCore
         static std::vector<char> readFile(const std::string& filename);
 
         void createCommandPool();
-        void createCommandBuffer();
+        void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+        void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+        void createVertexBuffer();
+        void createIndexBuffer();
+        void createCommandBuffers();
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
         void createSyncObjects();
         void drawFrame();
+
+        static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+        uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
         void cleanup();
 
@@ -139,28 +185,56 @@ namespace VCore
         GLFWwindow* m_window;
         VkSurfaceKHR m_surface;
         VkQueue m_presentQueue;
+
         VkPhysicalDevice m_physicalDevice;
         VkPhysicalDeviceProperties m_physicalDeviceProperties; // type, name, etc...
         VkDevice m_device; // logical device to interface with m_physicalDevice
+
         VkQueue m_graphicsQueue;
         VkSwapchainKHR m_swapChain;
         VkFormat m_swapChainImageFormat;
         VkExtent2D m_swapChainExtent;
         std::vector<VkImage> m_swapChainImages;
         std::vector<VkImageView> m_swapChainImageViews;
+        std::vector<VkFramebuffer> m_swapChainFramebuffers;
+
         VkRenderPass m_renderPass;
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
-        std::vector<VkFramebuffer> m_swapChainFramebuffers;
-        VkCommandPool m_commandPool;
-        VkCommandBuffer m_commandBuffer;
-        VkSemaphore m_imageAvailableSemaphore;
-        VkSemaphore m_renderFinishedSemaphore;
-        VkFence m_inFlightFence;
 
- 
+        VkBuffer m_vertexBuffer;
+        VkBuffer m_indexBuffer;
+        VkDeviceMemory m_vertexBufferMemory;
+        VkDeviceMemory m_indexBufferMemory;
+
+        VkCommandPool m_commandPool;
+        std::vector<VkCommandBuffer> m_commandBuffer;
+        std::vector<VkSemaphore> m_imageAvailableSemaphore;
+        std::vector<VkSemaphore> m_renderFinishedSemaphore;
+        std::vector<VkFence> m_inFlightFence;
+        uint32_t m_currentFrame;
+
+        bool m_b_framebufferResized;
+
+        const int m_MAX_FRAMES_IN_FLIGHT = 2;
         const int m_WIDTH = 800;
         const int m_HEIGHT = 600;
+
+
+
+        const std::vector<Vertex> m_vertices = 
+        {
+            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+            {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+            {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+            {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        };
+
+        const std::vector<uint16_t> m_indices = {
+            0, 1, 2, 2, 3, 0
+        };
+
+
 
         // For device extensions required to present images to the window system (swap chain usage)
         const std::vector<const char*> m_deviceExtensions = {

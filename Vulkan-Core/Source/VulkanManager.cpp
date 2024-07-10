@@ -21,24 +21,36 @@ namespace VCore
         m_window = VK_NULL_HANDLE;
         m_surface = VK_NULL_HANDLE;
         m_presentQueue = VK_NULL_HANDLE;
+       
         m_physicalDevice = VK_NULL_HANDLE; // implicitly destroyed when VkInstance is destroyed
         m_physicalDeviceProperties = VkPhysicalDeviceProperties();
         m_device = VK_NULL_HANDLE;
+        
         m_graphicsQueue = VK_NULL_HANDLE; // implicitly destroyed when VkDevice is destroyed
         m_swapChain = VK_NULL_HANDLE;
         m_swapChainImageFormat = VkFormat();
         m_swapChainExtent = VkExtent2D();
         m_swapChainImages = std::vector<VkImage>(); // automatically cleaned up once the swap chain has been destroyed
         m_swapChainImageViews = std::vector<VkImageView>();
+        m_swapChainFramebuffers = std::vector<VkFramebuffer>();
+
         m_renderPass = VK_NULL_HANDLE;
         m_pipelineLayout = VK_NULL_HANDLE;
         m_graphicsPipeline = VK_NULL_HANDLE;
-        m_swapChainFramebuffers = std::vector<VkFramebuffer>();
+
+        m_vertexBuffer = VK_NULL_HANDLE;
+        m_indexBuffer = VK_NULL_HANDLE;
+
+        m_indexBufferMemory = VK_NULL_HANDLE;
+        m_vertexBufferMemory = VK_NULL_HANDLE;
+
         m_commandPool = VK_NULL_HANDLE;
-        m_commandBuffer = VK_NULL_HANDLE;
-        m_imageAvailableSemaphore = VK_NULL_HANDLE;
-        m_renderFinishedSemaphore = VK_NULL_HANDLE;
-        m_inFlightFence = VK_NULL_HANDLE;
+        m_commandBuffer = std::vector<VkCommandBuffer>();
+        m_imageAvailableSemaphore = std::vector<VkSemaphore>();
+        m_renderFinishedSemaphore = std::vector<VkSemaphore>();
+        m_inFlightFence = std::vector<VkFence>();
+        m_currentFrame = 0;
+        m_b_framebufferResized = false;
     }
 
     VulkanManager::~VulkanManager()
@@ -62,11 +74,15 @@ namespace VCore
         // Tell glfw not to create OpenGL context with init call
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         // Disable window resizing for now
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
         // Create our window
         // glfwCreateWindow(width, height, title, monitorToOpenOn, onlyUsedForOpenGL)
-        m_window = glfwCreateWindow(m_WIDTH, m_HEIGHT, "Vulkan", nullptr, nullptr);
+        m_window = glfwCreateWindow(m_WIDTH, m_HEIGHT, "Vulkan", nullptr, nullptr);    
+
+        // resize window callback function - see recreating swapchain section - https://vulkan-tutorial.com/en/Drawing_a_triangle/Swap_chain_recreation
+        glfwSetWindowUserPointer(m_window, this);        
+        glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
     }
 
     void VulkanManager::initVulkan()
@@ -82,7 +98,9 @@ namespace VCore
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
-        createCommandBuffer();
+        createVertexBuffer();
+        createIndexBuffer();
+        createCommandBuffers();
         createSyncObjects();
     }
 
@@ -151,10 +169,6 @@ namespace VCore
         {
             throw std::runtime_error("failed to create instance...");
         }
-        else
-        {
-            std::cout << "Vulkan instance successfully created." << std::endl;
-        }
     }
 
     void VulkanManager::createSurface()
@@ -162,10 +176,6 @@ namespace VCore
         if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create window surface.");
-        }
-        else
-        {
-            std::cout << "Window surface successfully created." << std::endl;
         }
     }
 
@@ -205,8 +215,7 @@ namespace VCore
                 // Here we are just taking the very first suitable device and going with it
                 if (isDeviceSuitable(device))
                 {
-                    vkGetPhysicalDeviceProperties(device, &m_physicalDeviceProperties);
-                    std::cout << "Suitable GPU found: " << m_physicalDeviceProperties.deviceName << std::endl;
+                    vkGetPhysicalDeviceProperties(device, &m_physicalDeviceProperties);            
                     m_physicalDevice = device;
                     break;
                 }
@@ -408,8 +417,6 @@ namespace VCore
         }
         else
         {
-            std::cout << "Logical device successfully created." << std::endl;
-
             // Get queuehandles for our newly created device queues to be able to use them to send commands to
             vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphicsQueue); // Graphics queue handle
             // ^^ NOTE FROM WIKI: The parameters are the logical device, queue family, queue index and a pointer to the variable to store the queue handle in. Because we're only creating a single queue from this family, we'll simply use index 0.
@@ -566,8 +573,6 @@ namespace VCore
         }
         else
         {
-            std::cout << "Swapchain successfully created." << std::endl;
-
             // Save these swapchain values for later use
             m_swapChainImageFormat = surfaceFormat.format;
             m_swapChainExtent = extent;
@@ -577,6 +582,42 @@ namespace VCore
             m_swapChainImages.resize(ui_imageCount); // Resize m_swapChainImages to appropriate size
             vkGetSwapchainImagesKHR(m_device, m_swapChain, &ui_imageCount, m_swapChainImages.data()); // Retrieve available images
         }
+    }
+
+    void VulkanManager::recreateSwapChain()
+    {
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(m_window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(m_window, &width, &height);
+            glfwWaitEvents();
+        }
+
+        vkDeviceWaitIdle(m_device); // Waits for the gpu to be done with current frame
+
+        cleanupSwapChain();
+
+        createSwapChain();
+        // The image views need to be recreated because they are based directly on the swap chain images. Finally, the framebuffers directly depend on the swap chain images, and thus must be recreated as well.
+        createImageViews();
+        createFramebuffers();
+    }
+
+    void VulkanManager::cleanupSwapChain()
+    {
+        // Image views
+        for (auto imageView : m_swapChainImageViews)
+        {
+            vkDestroyImageView(m_device, imageView, nullptr);
+        }
+        // Framebuffers
+        for (VkFramebuffer framebuffer : m_swapChainFramebuffers)
+        {
+            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+        }
+
+        // Swapchain
+        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
     }
 
     void VulkanManager::createImageViews()
@@ -607,10 +648,6 @@ namespace VCore
             {
                 throw std::runtime_error("failed to create image view.");
             }
-            else
-            {
-                std::cout << "Image view successfully created." << std::endl;
-            }
         }
     }
 
@@ -639,10 +676,6 @@ namespace VCore
             if (vkCreateFramebuffer(m_device, &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS)
             {
                 throw std::runtime_error("failed to create framebuffer!");
-            }
-            else
-            {
-                std::cout << "Framebuffer successfully created." << std::endl;
             }
         }
     }
@@ -697,10 +730,6 @@ namespace VCore
         {
             throw std::runtime_error("failed to create render pass!");
         }
-        else
-        {
-            std::cout << "Render pass successfully created." << std::endl;
-        }
     }
 
     void VulkanManager::createGraphicsPipeline()
@@ -735,12 +764,16 @@ namespace VCore
         // VkPipelineVertexInputStateCreateInfo Describes the format of the vertex data that will be passed to the vertex shader in these two ways:
         // 1. Bindings: spacing between data and whether the data is per - vertex or per - instance(see instancing)
         // 2. Attribute descriptions : type of the attributes passed to the vertex shader, which binding to load them from and at which offset
+
+        auto bindingDescription = Vertex::getBindingDescription();
+        auto attributeDescription = Vertex::getAttributeDescriptions();
+
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
-        vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescription.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescription.data();
 
 
         // Describes what kind of geometry will be drawn from the vertices and if primitive restart should be enabled
@@ -854,10 +887,6 @@ namespace VCore
         if (vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
         }
-        else
-        {
-            std::cout << "Pipeline Layout successfully created." << std::endl;
-        }
 
 
         // CREATE GRAPHICS PIPELINE
@@ -890,10 +919,6 @@ namespace VCore
         if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to create graphics pipeline.");
-        }
-        else
-        {
-            std::cout << "Graphics pipeline successfully created." << std::endl;
         }
 
 
@@ -959,27 +984,146 @@ namespace VCore
         {
             throw std::runtime_error("failed to create command pool!");
         }
-        else
-        {
-            std::cout << "Command pool successfully created." << std::endl;
-        }
     }
 
-    void VulkanManager::createCommandBuffer()
+    void VulkanManager::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+    {
+        // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Vertex_buffer_creation
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = size;
+        bufferInfo.usage = usage;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(m_device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to create vertex buffer!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(m_device, buffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        // NOTE FROM THE WIKI: It should be noted that in a real world application, you're not supposed to actually call vkAllocateMemory for every individual buffer. The maximum number of simultaneous memory allocations is limited by the maxMemoryAllocationCount physical device limit
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+        {
+            throw std::runtime_error("failed to allocate vertex buffer memory!");
+        }
+
+        vkBindBufferMemory(m_device, buffer, bufferMemory, 0);
+    }
+
+    void VulkanManager::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+    {
+        // For copying our cpu staging buffer over to our actual device buffer
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = m_commandPool;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer);
+
+        // And immediately start recording the command buffer:
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        // We're only going to use the command buffer once and wait with returning from the function until the copy operation has finished executing. It's good practice to tell the driver about our intent using 
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0; // Optional
+        copyRegion.dstOffset = 0; // Optional
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+        // Stop recording right after that.
+        vkEndCommandBuffer(commandBuffer);
+
+        // Now execute the command buffer to complete the transfer
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+        // We just want to execute the transfer on the buffers immediately.
+        vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(m_graphicsQueue);
+        // Don't forget to clean up the command buffer used for the transfer operation.
+        vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
+    }
+
+    void VulkanManager::createVertexBuffer()
+    {
+        // Create staging buffer for control from the cpu
+        // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Staging_buffer
+
+        VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size(); 
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, m_vertices.data(), (size_t)bufferSize);
+        vkUnmapMemory(m_device, stagingBufferMemory);
+
+        // Create device local vertex buffer for actual buffer
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vertexBuffer, m_vertexBufferMemory);
+
+        // We can now call copyBuffer function to move the vertex data to the device local buffer:
+        copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
+
+        // After copying the data from the staging buffer to the device buffer, we should clean it up:
+        vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+        vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+    }
+
+    void VulkanManager::createIndexBuffer()
+    {
+        // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Index_buffer
+
+        VkDeviceSize bufferSize = sizeof(m_indices[0]) * m_indices.size();
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+        void* data;
+        vkMapMemory(m_device, stagingBufferMemory, 0, bufferSize, 0, &data);
+        memcpy(data, m_indices.data(), (size_t)bufferSize);
+        vkUnmapMemory(m_device, stagingBufferMemory);
+
+        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indexBuffer, m_indexBufferMemory);
+
+        copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
+
+        vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+        vkFreeMemory(m_device, stagingBufferMemory, nullptr);
+    }
+
+    void VulkanManager::createCommandBuffers()
     {
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         allocInfo.commandPool = m_commandPool;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
+        allocInfo.commandBufferCount = m_MAX_FRAMES_IN_FLIGHT;
 
-        if (vkAllocateCommandBuffers(m_device, &allocInfo, &m_commandBuffer) != VK_SUCCESS) 
+        m_commandBuffer.resize(m_MAX_FRAMES_IN_FLIGHT);
+        m_imageAvailableSemaphore.resize(m_MAX_FRAMES_IN_FLIGHT);
+        m_renderFinishedSemaphore.resize(m_MAX_FRAMES_IN_FLIGHT);
+        m_inFlightFence.resize(m_MAX_FRAMES_IN_FLIGHT);
+
+        if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffer.data()) != VK_SUCCESS) 
         {
             throw std::runtime_error("failed to allocate command buffers!");
-        }
-        else
-        {
-            std::cout << "Command Buffer successfully created." << std::endl;
         }
     }
 
@@ -996,8 +1140,6 @@ namespace VCore
         }
         else
         {
-            std::cout << "Command Buffer successfully began recording." << std::endl;
-
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
             renderPassInfo.renderPass = m_renderPass;
@@ -1012,6 +1154,16 @@ namespace VCore
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             // Bind the graphics pipeline
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+
+
+            // Bind the vertex buffer
+            VkBuffer vertexBuffers[] = { m_vertexBuffer };
+            VkDeviceSize offsets[] = { 0 };
+            vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+            // Bind the index buffer
+            vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
 
             // we did specify viewport and scissor state for this pipeline to be dynamic. So we need to set them in the command buffer before issuing our draw command:
             VkViewport viewport{};
@@ -1034,7 +1186,13 @@ namespace VCore
             // instanceCount : Used for instanced rendering, use 1 if you're not doing that.
             // firstVertex : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
             // firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            //vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            //vkCmdDraw(commandBuffer, 3, 1, 3, 0);
+            //vkCmdDraw(commandBuffer, static_cast<uint32_t>(m_vertices.size()), 1, 0, 0);
+
+            // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Index_buffer
+            vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(m_indices.size()), 1, 0, 0, 0); // reusing vertices with index buffers.
+            // NOTE FROM THE WIKI: The previous chapter already mentioned that you should allocate multiple resources like buffers from a single memory allocation, but in fact you should go a step further. Driver developers recommend that you also store multiple buffers, like the vertex and index buffer, into a single VkBuffer and use offsets in commands like vkCmdBindVertexBuffers. The advantage is that your data is more cache friendly in that case, because it's closer together. It is even possible to reuse the same chunk of memory for multiple resources if they are not used during the same render operations, provided that their data is refreshed, of course. This is known as aliasing and some Vulkan functions have explicit flags to specify that you want to do this.
 
             // End render pass
             vkCmdEndRenderPass(commandBuffer);
@@ -1043,10 +1201,6 @@ namespace VCore
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) 
             {
                 throw std::runtime_error("failed to record command buffer!");
-            }
-            else
-            {
-                std::cout << "Command buffer end recording." << std::endl;
             }
         }
     }
@@ -1063,16 +1217,15 @@ namespace VCore
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Start it signaled so the very first frame doesn't block indefinitely
 
-        // Create semaphores and fence
-        if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
-            vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS ||
-            vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFence) != VK_SUCCESS) 
+        for (size_t i = 0; i < m_MAX_FRAMES_IN_FLIGHT; i++)
         {
-            throw std::runtime_error("failed to create semaphores!");
-        }
-        else
-        {
-            std::cout << "Semaphores and Fence successfully created." << std::endl;
+            // Create semaphores and fences
+            if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore[i]) != VK_SUCCESS ||
+                vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore[i]) != VK_SUCCESS ||
+                vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFence[i]) != VK_SUCCESS)
+            {
+                throw std::runtime_error("failed to create semaphores!");
+            }
         }
     }
 
@@ -1081,45 +1234,57 @@ namespace VCore
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Rendering_and_presentation
         
         // At the start of the frame, we want to wait until the previous frame has finished, so that the command buffer and semaphores are available to use. To do that, we call vkWaitForFences:
-        vkWaitForFences(m_device, 1, &m_inFlightFence, VK_TRUE, UINT64_MAX);
-
-        // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call:
-        vkResetFences(m_device, 1, &m_inFlightFence);
+        vkWaitForFences(m_device, 1, &m_inFlightFence[m_currentFrame], VK_TRUE, UINT64_MAX);
 
         // acquire an image from the swap chain
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+             //vkDeviceWaitIdle(m_device); // Waits for the gpu to be done with current frame
+        VkResult result = vkAcquireNextImageKHR(m_device, m_swapChain, UINT64_MAX, m_imageAvailableSemaphore[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+        // More details here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Swap_chain_recreation
+        // Check on swap chain integrity after image access
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_b_framebufferResized)
+        {
+            m_b_framebufferResized = false;
+            recreateSwapChain(); // THIS IS BROKEN AND SEMAPHORE DOESN'T WORK ON NEXT AQUIREIMAGEKHR CALL ON RESIZE
+            return;
+        }
+        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+        {
+            throw std::runtime_error("failed to acquire swap chain image.");
+        }
+
+        // After waiting && checking the integrity/recreating the swap chain if needed, we need to manually reset the fence to the unsignaled state with the vkResetFences call:
+        vkResetFences(m_device, 1, &m_inFlightFence[m_currentFrame]);
 
         // Record the command buffer
         // Reset to make sure it is able to be recorded
-        vkResetCommandBuffer(m_commandBuffer, 0);
+        vkResetCommandBuffer(m_commandBuffer[m_currentFrame], 0);
 
-        recordCommandBuffer(m_commandBuffer, imageIndex);
+        recordCommandBuffer(m_commandBuffer[m_currentFrame], imageIndex);
 
         // Submit the command buffer
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore };
+        VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore[m_currentFrame] };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_commandBuffer;
+        submitInfo.pCommandBuffers = &m_commandBuffer[m_currentFrame];
 
-        VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+        VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore[m_currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFence) != VK_SUCCESS) 
+        if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFence[m_currentFrame]) != VK_SUCCESS)
         {
-            throw std::runtime_error("failed to submit draw command buffer!");
+            throw std::runtime_error("failed to submit draw command buffer.");
         }
         else
         {
-            std::cout << "Draw command successfully submitted to command buffer." << std::endl;
-
             VkPresentInfoKHR presentInfo{};
             presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
             presentInfo.waitSemaphoreCount = 1;
@@ -1133,7 +1298,43 @@ namespace VCore
 
             // Present!
             vkQueuePresentKHR(m_presentQueue, &presentInfo);
+
+            // Check on swap chain integrity after present
+            if (result == VK_ERROR_OUT_OF_DATE_KHR)
+            {
+                recreateSwapChain();
+            }
+            else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+            {
+                throw std::runtime_error("failed to present swap chain image.");
+            }
         }
+
+        // Advance the m_currentFrame
+        m_currentFrame = (m_currentFrame + 1) % m_MAX_FRAMES_IN_FLIGHT;
+    }
+
+
+    void VulkanManager::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+    {
+        // Called when GLFW detects the window has been resized.  It has a pointer to our app that we gave it in initWindow that we use here to set our m_b_framebufferResized member to true
+        auto app = reinterpret_cast<VulkanManager*>(glfwGetWindowUserPointer(window));
+        app->m_b_framebufferResized = true;
+    }
+
+    uint32_t VulkanManager::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+    {
+        // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Vertex_buffer_creation
+        VkPhysicalDeviceMemoryProperties memProperties;
+        vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+                return i;
+            }
+        }
+
+        throw std::runtime_error("failed to find suitable memory type!");
     }
 
 
@@ -1141,18 +1342,29 @@ namespace VCore
     {
         // Make sure to cleanup all other resources BEFORE the Vulkan m_instance is destroyed (in order of creation if possible)
 
-        // Semaphores and Fence
-        vkDestroySemaphore(m_device, m_imageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(m_device, m_renderFinishedSemaphore, nullptr);
-        vkDestroyFence(m_device, m_inFlightFence, nullptr);
+        // Semaphores and Fences
+        for (size_t i = 0; i < m_MAX_FRAMES_IN_FLIGHT; i++)
+        {
+            vkDestroySemaphore(m_device, m_imageAvailableSemaphore[i], nullptr);
+            vkDestroySemaphore(m_device, m_renderFinishedSemaphore[i], nullptr);
+            vkDestroyFence(m_device, m_inFlightFence[i], nullptr);
+        }
+        
+        // Swap Chain resources
+        cleanupSwapChain();
+
+        // Index Buffer
+        vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
+        // Index Buffer Memory
+        vkFreeMemory(m_device, m_indexBufferMemory, nullptr);
+
+        // Vertex Buffer
+        vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);       
+        // Vertex Buffer Memory
+        vkFreeMemory(m_device, m_vertexBufferMemory, nullptr);
 
         // Command Pool
         vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-        // Framebuffers
-        for (VkFramebuffer framebuffer : m_swapChainFramebuffers)
-        {
-            vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-        }
 
         // Graphics Pipeline
         vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
@@ -1161,13 +1373,6 @@ namespace VCore
         // Render pass
         vkDestroyRenderPass(m_device, m_renderPass, nullptr);
 
-        // Image views
-        for (auto imageView : m_swapChainImageViews)
-        {
-            vkDestroyImageView(m_device, imageView, nullptr);
-        }
-        // Swapchain
-        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
         // Logical device
         vkDestroyDevice(m_device, nullptr);
 
