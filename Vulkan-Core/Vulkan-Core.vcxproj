@@ -58,21 +58,21 @@
     <IntDir>..\Binaries\Intermediates\windows-x86_64\Debug\Vulkan-Core\</IntDir>
     <TargetName>Vulkan-Core</TargetName>
     <TargetExt>.lib</TargetExt>
-    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;..\vendors\Stb_image;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>..\Binaries\windows-x86_64\Release\Vulkan-Core\</OutDir>
     <IntDir>..\Binaries\Intermediates\windows-x86_64\Release\Vulkan-Core\</IntDir>
     <TargetName>Vulkan-Core</TargetName>
     <TargetExt>.lib</TargetExt>
-    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;..\vendors\Stb_image;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Dist|x64'">
     <OutDir>..\Binaries\windows-x86_64\Dist\Vulkan-Core\</OutDir>
     <IntDir>..\Binaries\Intermediates\windows-x86_64\Dist\Vulkan-Core\</IntDir>
     <TargetName>Vulkan-Core</TargetName>
     <TargetExt>.lib</TargetExt>
-    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>..\vendors\Vulkan\include;..\vendors\GLM\glm;..\vendors\GLFW\include;..\vendors\GLFW\lib-vc2022;..\vendors\Stb_image;$(ExternalIncludePath)</ExternalIncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

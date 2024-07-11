@@ -79,7 +79,6 @@ namespace VCore
             std::vector<VkPresentModeKHR> presentModes;
         };
 
-
         // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Vertex_input_description
         struct Vertex {
             glm::vec2 pos;
@@ -111,6 +110,15 @@ namespace VCore
 
                 return attributeDescriptions;
             };
+        };
+
+        // Refer to - https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_layout_and_buffer
+        // And for bit alignment - https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap15.html#interfaces-resources-layout
+        // https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_pool_and_sets
+        struct UniformBufferObject {
+            glm::mat4 model;
+            glm::mat4 view;
+            glm::mat4 proj;
         };
 
         VulkanManager();
@@ -153,12 +161,25 @@ namespace VCore
         void createCommandPool();
         void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
         void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+        VkCommandBuffer beginSingleTimeCommands();
+        void endSingleTimeCommands(VkCommandBuffer commandBuffer);
         void createVertexBuffer();
         void createIndexBuffer();
         void createCommandBuffers();
         void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
         void createSyncObjects();
         void drawFrame();
+
+        void createTextureImage();
+        void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+        void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+        void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+        void createDescriptorSetLayout();
+        void createUniformBuffers();
+        void updateUniformBuffer(uint32_t currentImage);
+        void createDescriptorPool();
+        void createDescriptorSets();
 
         static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
         uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -199,6 +220,9 @@ namespace VCore
         std::vector<VkFramebuffer> m_swapChainFramebuffers;
 
         VkRenderPass m_renderPass;
+        VkDescriptorSetLayout m_descriptorSetLayout;
+        VkDescriptorPool m_descriptorPool;
+        std::vector<VkDescriptorSet> m_descriptorSets;
         VkPipelineLayout m_pipelineLayout;
         VkPipeline m_graphicsPipeline;
 
@@ -206,6 +230,13 @@ namespace VCore
         VkBuffer m_indexBuffer;
         VkDeviceMemory m_vertexBufferMemory;
         VkDeviceMemory m_indexBufferMemory;
+
+        std::vector<VkBuffer> m_uniformBuffers;
+        std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+        std::vector<void*> m_uniformBuffersMapped;
+
+        VkImage m_textureImage;
+        VkDeviceMemory m_textureImageMemory;
 
         VkCommandPool m_commandPool;
         std::vector<VkCommandBuffer> m_commandBuffer;
