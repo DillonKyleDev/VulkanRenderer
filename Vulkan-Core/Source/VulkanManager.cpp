@@ -103,7 +103,7 @@ namespace VCore
 
         // resize window callback function - see recreating swapchain section - https://vulkan-tutorial.com/en/Drawing_a_triangle/Swap_chain_recreation
         glfwSetWindowUserPointer(m_window, this);        
-        glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
+        glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);        
     }
 
     void VulkanManager::initVulkan()
@@ -1061,6 +1061,7 @@ namespace VCore
         // For copying our cpu staging buffer over to our actual device buffer
         VkCommandBufferAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.pNext = 0;
         allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocInfo.commandPool = m_commandPool;
         allocInfo.commandBufferCount = 1;
@@ -1071,6 +1072,7 @@ namespace VCore
         // And immediately start recording the command buffer:
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.pNext = 0;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
         vkBeginCommandBuffer(commandBuffer, &beginInfo);
@@ -1101,8 +1103,8 @@ namespace VCore
 
         VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size(); 
 
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
+        VkBuffer stagingBuffer{};
+        VkDeviceMemory stagingBufferMemory{};
         createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
         void* data;
@@ -1368,7 +1370,7 @@ namespace VCore
         VkDeviceMemory stagingBufferMemory{};
         createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
         
-        void* data;
+        void* data{};
         vkMapMemory(m_device, stagingBufferMemory, 0, imageSize, 0, &data);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
         vkUnmapMemory(m_device, stagingBufferMemory);
@@ -1381,6 +1383,9 @@ namespace VCore
         transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         copyBufferToImage(stagingBuffer, m_textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
         transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+        vkFreeMemory(m_device, stagingBufferMemory, nullptr);
     }
 
     void VulkanManager::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) 
@@ -1426,10 +1431,9 @@ namespace VCore
 
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
-        endSingleTimeCommands(commandBuffer);
-
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.pNext = 0;
         barrier.oldLayout = oldLayout;
         barrier.newLayout = newLayout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1440,8 +1444,6 @@ namespace VCore
         barrier.subresourceRange.levelCount = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = 0; // TODO
-        barrier.dstAccessMask = 0; // TODO
 
         VkPipelineStageFlags sourceStage{};
         VkPipelineStageFlags destinationStage{};
@@ -1451,6 +1453,7 @@ namespace VCore
             barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
             destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         }
         else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
@@ -1462,16 +1465,16 @@ namespace VCore
         }
         else {
             throw std::invalid_argument("unsupported layout transition!");
-        }
+        }        
 
         vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+        endSingleTimeCommands(commandBuffer);
     }
 
     void VulkanManager::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height)
     {
         VkCommandBuffer commandBuffer = beginSingleTimeCommands();
-
-        endSingleTimeCommands(commandBuffer);
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -1498,6 +1501,8 @@ namespace VCore
             1,
             &region
         );
+
+        endSingleTimeCommands(commandBuffer);
     }
 
     void VulkanManager::createDescriptorSetLayout()
@@ -1652,6 +1657,10 @@ namespace VCore
         
         // Swap Chain resources
         cleanupSwapChain();
+
+        // Image texture resources
+        vkDestroyImage(m_device, m_textureImage, nullptr);
+        vkFreeMemory(m_device, m_textureImageMemory, nullptr);
 
         // Uniform buffers
         for (size_t i = 0; i < m_MAX_FRAMES_IN_FLIGHT; i++) {
