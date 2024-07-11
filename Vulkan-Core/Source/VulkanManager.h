@@ -81,26 +81,25 @@ namespace VCore
 
         // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Vertex_input_description
         struct Vertex {
-            glm::vec2 pos;
+            glm::vec3 pos;
             glm::vec3 color;
+            glm::vec2 texCoord;
 
-            static VkVertexInputBindingDescription getBindingDescription()
-            {
-                // The binding parameter specifies the index of the binding in the array of bindings. The stride parameter specifies the number of bytes from one entry to the next
+            static VkVertexInputBindingDescription getBindingDescription() {
                 VkVertexInputBindingDescription bindingDescription{};
                 bindingDescription.binding = 0;
                 bindingDescription.stride = sizeof(Vertex);
                 bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
                 return bindingDescription;
-            };
+            }
 
-            static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-                // describes how to extract a vertex attribute from a chunk of vertex data originating from a binding description
-                std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+            static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
+                std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+
                 attributeDescriptions[0].binding = 0;
                 attributeDescriptions[0].location = 0;
-                attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+                attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
                 attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
                 attributeDescriptions[1].binding = 0;
@@ -108,8 +107,13 @@ namespace VCore
                 attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
                 attributeDescriptions[1].offset = offsetof(Vertex, color);
 
+                attributeDescriptions[2].binding = 0;
+                attributeDescriptions[2].location = 2;
+                attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+                attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
                 return attributeDescriptions;
-            };
+            }
         };
 
         // Refer to - https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_layout_and_buffer
@@ -151,6 +155,7 @@ namespace VCore
         void recreateSwapChain();
         void cleanupSwapChain();
         void createImageViews();
+        VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
         void createFramebuffers();
 
         void createRenderPass();
@@ -172,8 +177,15 @@ namespace VCore
 
         void createTextureImage();
         void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+        void createTextureImageView();
+        void createTextureSampler();
         void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
         void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+
+        void createDepthResources();
+        VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+        VkFormat findDepthFormat();
+        bool hasStencilComponent(VkFormat format);
 
         void createDescriptorSetLayout();
         void createUniformBuffers();
@@ -237,6 +249,12 @@ namespace VCore
 
         VkImage m_textureImage;
         VkDeviceMemory m_textureImageMemory;
+        VkImageView m_textureImageView;
+        VkSampler m_textureSampler;
+
+        VkImage m_depthImage;
+        VkDeviceMemory m_depthImageMemory;
+        VkImageView m_depthImageView;
 
         VkCommandPool m_commandPool;
         std::vector<VkCommandBuffer> m_commandBuffer;
@@ -253,16 +271,21 @@ namespace VCore
 
 
 
-        const std::vector<Vertex> m_vertices = 
-        {
-            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-            {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-            {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-            {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+        const std::vector<Vertex> m_vertices = {
+            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+            {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+            {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+
+            {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+            {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+            {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+            {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
         };
 
         const std::vector<uint16_t> m_indices = {
-            0, 1, 2, 2, 3, 0
+            0, 1, 2, 2, 3, 0,
+            4, 5, 6, 6, 7, 4
         };
 
 
