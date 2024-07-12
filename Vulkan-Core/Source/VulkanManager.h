@@ -10,9 +10,16 @@
 #include <optional>
 #include <array>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <gtx/hash.hpp>
 
 namespace VCore
 {
+    // NOTES TO SELF:
+    // NOT ALL RESOURCES PERTAINING TO THE DEPTH BUFFER HAVE BEEN DESTROYED PROPERLY AND ARE GIVING WARNINGS ON CLOSING WINDOW
+    // WHEN RESIZING WINDOW, SEMAPHORES ARE NOT BEING HANDLED PROPERLY AND ARE GIVING WARNINGS
+    // 
+    // 
     // SEQUENCE OF EVENTS //
     /*
     // Create a GLFW window
@@ -85,6 +92,11 @@ namespace VCore
             glm::vec3 color;
             glm::vec2 texCoord;
 
+            bool operator==(const Vertex& other) const 
+            {
+                return pos == other.pos && color == other.color && texCoord == other.texCoord;
+            }
+
             static VkVertexInputBindingDescription getBindingDescription() {
                 VkVertexInputBindingDescription bindingDescription{};
                 bindingDescription.binding = 0;
@@ -155,7 +167,7 @@ namespace VCore
         void recreateSwapChain();
         void cleanupSwapChain();
         void createImageViews();
-        VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+        VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
         void createFramebuffers();
 
         void createRenderPass();
@@ -176,16 +188,19 @@ namespace VCore
         void drawFrame();
 
         void createTextureImage();
-        void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+        void createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
         void createTextureImageView();
         void createTextureSampler();
-        void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+        void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels);
         void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+        void generateMipmaps(VkImage image, VkFormat imageFormat, int32_t texWidth, int32_t texHeight, uint32_t mipLevels);
 
-        void createDepthResources();
+        void createDepthResources(); // NOT ALL RESOURCES HAVE BEEN PROPERLY CLEANED UP AND ARE GIVING WARNINGS WHEN CLOSING WINDOW
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
         VkFormat findDepthFormat();
         bool hasStencilComponent(VkFormat format);
+
+        void loadModel();
 
         void createDescriptorSetLayout();
         void createUniformBuffers();
@@ -251,6 +266,7 @@ namespace VCore
         VkDeviceMemory m_textureImageMemory;
         VkImageView m_textureImageView;
         VkSampler m_textureSampler;
+        uint32_t m_mipLevels;
 
         VkImage m_depthImage;
         VkDeviceMemory m_depthImageMemory;
@@ -263,30 +279,34 @@ namespace VCore
         std::vector<VkFence> m_inFlightFence;
         uint32_t m_currentFrame;
 
+        std::vector<Vertex> m_vertices;
+        std::vector<uint32_t> m_indices;
+
         bool m_b_framebufferResized;
 
         const int m_MAX_FRAMES_IN_FLIGHT = 2;
         const int m_WIDTH = 800;
         const int m_HEIGHT = 600;
 
+        const std::string m_MODEL_PATH = "../Models/viking_room.obj";
+        const std::string m_TEXTURE_PATH = "../Textures/viking_room.png";
 
+        //const std::vector<Vertex> m_vertices = {
+        //    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        //    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        //    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        //    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
 
-        const std::vector<Vertex> m_vertices = {
-            {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-            {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-            {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-            {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
+        //    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
+        //    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
+        //    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
+        //    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
+        //};
 
-            {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-            {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-            {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-            {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-        };
-
-        const std::vector<uint16_t> m_indices = {
-            0, 1, 2, 2, 3, 0,
-            4, 5, 6, 6, 7, 4
-        };
+        //const std::vector<uint16_t> m_indices = {
+        //    0, 1, 2, 2, 3, 0,
+        //    4, 5, 6, 6, 7, 4
+        //};
 
 
 
@@ -307,3 +327,12 @@ namespace VCore
         #endif
     };
 }
+
+// Refer to - https://vulkan-tutorial.com/en/Loading_models
+template<> struct std::hash<VCore::VulkanManager::Vertex> {
+    size_t operator()(VCore::VulkanManager::Vertex const& vertex) const {
+        return ((std::hash<glm::vec3>()(vertex.pos) ^
+            (std::hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+            (std::hash<glm::vec2>()(vertex.texCoord) << 1);
+    }
+};

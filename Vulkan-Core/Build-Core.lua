@@ -25,7 +25,8 @@ project "Vulkan-Core"
     "../vendors/GLM/glm",
     "../vendors/GLFW/include",
     "../vendors/GLFW/lib-vc2022",
-    "../vendors/Stb_image"
+    "../vendors/Stb_image",
+    "../vendors/tinyobjloader"
    }
 
    links
