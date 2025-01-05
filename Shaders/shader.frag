@@ -11,5 +11,6 @@ void main() {
     // Textures are sampled using the built-in texture function.
     // It takes a sampler and coordinate as arguments. 
     // The sampler automatically takes care of the filtering and transformations in the background
+    // outColor = vec4(1,1,1,1);
     outColor = texture(texSampler, fragTexCoord);
 }

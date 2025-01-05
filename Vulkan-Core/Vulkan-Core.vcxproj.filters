@@ -18,18 +18,35 @@
     <ClInclude Include="Source\Vulkan-Core.h">
       <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="VulkanManager.h">
-      <Filter>Source</Filter>
-    </ClInclude>
     <ClInclude Include="Source\VulkanManager.h" />
+    <ClInclude Include="Source\PhysicalDevice.h" />
+    <ClInclude Include="Source\Structs.h" />
+    <ClInclude Include="Source\Helper.h" />
+    <ClInclude Include="Source\LogicalDevice.h" />
+    <ClInclude Include="Source\ValidationLayers.h" />
+    <ClInclude Include="Source\WinSys.h" />
+    <ClInclude Include="Source\Model.h" />
+    <ClInclude Include="Source\Material.h" />
+    <ClInclude Include="Source\GraphicsPipeline.h" />
+    <ClInclude Include="Source\RenderPass.h" />
+    <ClInclude Include="Source\GameObject.h" />
+    <ClInclude Include="Source\Texture.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\Vulkan-Core.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="VulkanManager.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Source\VulkanManager.cpp" />
+    <ClCompile Include="Source\PhysicalDevice.cpp" />
+    <ClCompile Include="Source\Helper.cpp" />
+    <ClCompile Include="Source\LogicalDevice.cpp" />
+    <ClCompile Include="Source\ValidationLayers.cpp" />
+    <ClCompile Include="Source\WinSys.cpp" />
+    <ClCompile Include="Source\Model.cpp" />
+    <ClCompile Include="Source\Material.cpp" />
+    <ClCompile Include="Source\GraphicsPipeline.cpp" />
+    <ClCompile Include="Source\RenderPass.cpp" />
+    <ClCompile Include="Source\GameObject.cpp" />
+    <ClCompile Include="Source\Texture.cpp" />
   </ItemGroup>
 </Project>
