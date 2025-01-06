@@ -52,7 +52,7 @@ namespace VCore
         return shaderModule;
     }
 
-    void GraphicsPipeline::CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout)
+    void GraphicsPipeline::CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass, VkDescriptorSetLayout& descriptorSetLayout)
     {
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
         // Load the bytecode of the shaders

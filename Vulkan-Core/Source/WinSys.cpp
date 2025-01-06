@@ -3,9 +3,11 @@
 #include "VulkanManager.h"
 #include "Helper.h"
 
-// Image loading
-#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION // Image loading
 #include "stb_image.h"
+
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // Depth buffer helper - might not need??
 
 #include <array>
 #include <algorithm> // Necessary for std::clamp
@@ -18,6 +20,7 @@ namespace VCore
 	{
         m_window = VK_NULL_HANDLE;
         m_surface = VK_NULL_HANDLE;
+        //m_renderPass = RenderPass();
         m_windowWidth = 800;
         m_windowHeight = 600;
         m_swapChain = VK_NULL_HANDLE;
@@ -45,7 +48,6 @@ namespace VCore
 
     void WinSys::InitWindow()
     {
-        // initialize glfw
         glfwInit();
 
         // Tell glfw not to create OpenGL context with init call
@@ -59,7 +61,7 @@ namespace VCore
 
         // resize window callback function - see recreating swapchain section - https://vulkan-tutorial.com/en/Drawing_a_triangle/Swap_chain_recreation
         glfwSetWindowUserPointer(m_window, this);
-        glfwSetFramebufferSizeCallback(m_window, VulkanManager::framebufferResizeCallback);
+        glfwSetFramebufferSizeCallback(m_window, VulkanManager::FramebufferResizeCallback);
     }
 
     void WinSys::CreateSurface(VkInstance instance)
@@ -70,6 +72,11 @@ namespace VCore
         }
     }
 
+    //void WinSys::CreateRenderPass(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice)
+    //{
+    //    m_renderPass.CreateRenderPass(*this, physicalDevice, logicalDevice);
+    //}
+
     GLFWwindow* WinSys::GetWindow()
     {
         return m_window;
@@ -79,6 +86,21 @@ namespace VCore
     {
         return m_surface;
     }
+
+    //VkRenderPass& WinSys::GetRenderPass()
+    //{
+    //    return m_renderPass.GetRenderPass();
+    //}
+
+    //void WinSys::CreateResources(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice)
+    //{
+    //    CreateSwapChain(physicalDevice, logicalDevice);
+    //    CreateImageViews(logicalDevice);
+    //    m_renderPass.CreateRenderPass(*this, physicalDevice, logicalDevice);
+    //    CreateColorResources(physicalDevice, logicalDevice);
+    //    CreateDepthResources(physicalDevice, logicalDevice);
+    //    CreateFramebuffers(logicalDevice, m_renderPass.GetRenderPass());
+    //}
 
     void WinSys::Cleanup(VkInstance instance)
     {

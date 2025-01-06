@@ -24,6 +24,8 @@ namespace VCore
 		GLFWwindow* GetWindow();
 		VkSurfaceKHR GetSurface();
 
+		void CreateResources(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
+
 		// NOTE FROM WIKI: If the swapChainAdequate conditions were met then the support is definitely sufficient, but there may still be many different modes of varying optimality. We'll now write a couple of functions to find the right settings for the best possible swap chain. There are three types of settings to determine:
 		// Surface format (color depth)
 		VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -46,8 +48,7 @@ namespace VCore
 		VkImage CreateTextureImage(std::string path, uint32_t mipLevels, VkCommandPool commandPool, PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice, VkDeviceMemory textureImageMemory);
 
 		void CreateColorResources(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice);
-		// depth testing
-		void CreateDepthResources(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice);
+		void CreateDepthResources(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice); // depth testing
 
 		static void CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory, PhysicalDevice& physicalDevice, LogicalDevice &logicalDevice);
 		static void CopyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkCommandPool commandPool, LogicalDevice &logicalDevice);

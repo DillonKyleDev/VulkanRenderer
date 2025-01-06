@@ -33,22 +33,22 @@ namespace VCore
         return std::string();
     }
 
-    VkImageView Texture::GetImageView()
+    VkImageView& Texture::GetImageView()
     {
         return m_imageView;
     }
 
-    VkImage Texture::GetImage()
+    VkImage& Texture::GetImage()
     {
         return m_image;
     }
 
-    VkDeviceMemory Texture::GetTextureImageMemory()
+    VkDeviceMemory& Texture::GetTextureImageMemory()
     {
         return m_textureImageMemory;
     }
 
-    VkSampler Texture::GetTextureSampler()
+    VkSampler& Texture::GetTextureSampler()
     {
         return m_textureSampler;
     }

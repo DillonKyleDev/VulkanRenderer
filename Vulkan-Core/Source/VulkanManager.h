@@ -4,9 +4,7 @@
 #include "PhysicalDevice.h"
 #include "LogicalDevice.h"
 #include "WinSys.h"
-#include "Model.h"
 #include "RenderPass.h"
-#include "Material.h"
 #include "GameObject.h"
 
 #define GLFW_INCLUDE_VULKAN
@@ -14,13 +12,13 @@
 #include <glm.hpp>
 
 #include <vector>
-#include <string>
 
 
 namespace VCore
 {
     // For device extensions required to present images to the window system (swap chain usage)
-    const std::vector<const char*> DEVICE_EXTENSIONS = {
+    const std::vector<const char*> DEVICE_EXTENSIONS = 
+    {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
@@ -39,29 +37,25 @@ namespace VCore
     public:
         VulkanManager();
         ~VulkanManager();
-        void run(bool &_quit);
+        void Run(bool &_quit);
 
         // Was private, moved to public for WinSys
-        static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+        static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
 
     private:
-        void initVulkan();
-        void createInstance();
-        void mainLoop(bool& _quit);
-
-        void createCommandPool();
-        void createSyncObjects();
-        void drawFrame();
-
-        void cleanup();
-
+        void InitVulkan();
+        void CreateInstance();
+        void MainLoop(bool& _quit);
+        void CreateCommandPool();
+        void CreateSyncObjects();
+        void DrawFrame();
+        void Cleanup();
 
         GameObject m_vikingRoom;
+        GameObject m_ghostHand;
 
         VkInstance m_instance;
         WinSys m_winSystem;
-        
-        // devices
         PhysicalDevice m_physicalDevice;
         LogicalDevice m_logicalDevice;
         RenderPass m_renderPass;
@@ -73,10 +67,5 @@ namespace VCore
         std::vector<VkSemaphore> m_imageAvailableSemaphore;
         std::vector<VkSemaphore> m_renderFinishedSemaphore;
         std::vector<VkFence> m_inFlightFence;
-
-        const std::string m_MODEL_PATH = "../Models/viking_room.obj";
-        const std::string m_MODEL_PATH2 = "../Models/ssb.obj";
-        const std::string m_TEXTURE_PATH = "../Textures/viking_room.png";
-        const std::string m_TEXTURE_PATH2 = "../Textures/ssb.jpeg";
     };
 }

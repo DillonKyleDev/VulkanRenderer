@@ -13,10 +13,10 @@ namespace VCore
 		LogicalDevice();
 		~LogicalDevice();
 
-		VkDevice GetDevice();
-		VkQueue GetGraphicsQueue();
-		VkQueue GetPresentQueue();
-		void Init(PhysicalDevice physicalDevice, VkSurfaceKHR surface);
+		VkDevice& GetDevice();
+		VkQueue& GetGraphicsQueue();
+		VkQueue& GetPresentQueue();
+		void Init(PhysicalDevice& physicalDevice, VkSurfaceKHR surface);
 		void Cleanup();
 
 	private:

@@ -24,11 +24,11 @@ namespace VCore
 		void CreateVertexBuffer(VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void CreateIndexBuffer(VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void CreateCommandBuffers(VkCommandPool commandPool, LogicalDevice& logicalDevice);
-		void RecordCommandBuffer(uint32_t imageIndex, VkRenderPass renderPass, WinSys& winSystem, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkDescriptorSet descriptorSet);
+		void RecordCommandBuffer(uint32_t imageIndex, VkRenderPass& renderPass, WinSys& winSystem, VkPipeline& graphicsPipeline, VkPipelineLayout& pipelineLayout, VkDescriptorSet& descriptorSet);
 		void ResetCommandBuffer();
 		void CreateUniformBuffers(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
-		void UpdateUniformBuffer(uint32_t currentImage, WinSys& winSystem);
-		VkCommandBuffer& GetCurrentCommandBuffer();
+		void UpdateUniformBuffer(uint32_t currentImage, WinSys& winSystem, float multiplier);
+		std::vector<VkCommandBuffer>& GetCommandBuffer();
 		std::vector<VkBuffer>& GetUniformBuffers();
 		void CleanupUniformBuffers(LogicalDevice& logicalDevice);
 		void CleanupIndexBuffers(LogicalDevice& logicalDevice);

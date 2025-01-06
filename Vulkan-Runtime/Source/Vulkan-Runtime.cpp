@@ -8,15 +8,13 @@
 
 int main()
 {
-	//VCore::SetupVulkan();
-
     bool _quit = false;
     VCore::VulkanManager app = VCore::VulkanManager();
 
     while (!_quit)
     {
         try {
-            app.run(_quit);
+            app.Run(_quit);
         }
         catch (const std::exception& e) {
             std::cerr << e.what() << std::endl;

@@ -18,7 +18,8 @@ namespace VCore
         std::optional<uint32_t> graphicsFamily; // Make sure graphics can be rendered
         std::optional<uint32_t> presentFamily; // Make sure device can present images to the surface we created
 
-        bool isComplete() {
+        bool isComplete() 
+        {
             return graphicsFamily.has_value() && presentFamily.has_value();
         }
     };
@@ -36,11 +37,10 @@ namespace VCore
         glm::vec3 pos;
         glm::vec3 color;
         glm::vec2 texCoord;
-        glm::int16 shaderIndex;
 
         bool operator==(const Vertex& other) const
         {
-            return pos == other.pos && color == other.color && texCoord == other.texCoord && shaderIndex == other.shaderIndex;
+            return pos == other.pos && color == other.color && texCoord == other.texCoord;
         }
 
         static VkVertexInputBindingDescription getBindingDescription()
@@ -53,9 +53,9 @@ namespace VCore
             return bindingDescription;
         }
 
-        static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions()
+        static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
         {
-            std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+            std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
 
             attributeDescriptions[0].binding = 0;
             attributeDescriptions[0].location = 0;
@@ -71,11 +71,6 @@ namespace VCore
             attributeDescriptions[2].location = 2;
             attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
             attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-            attributeDescriptions[3].binding = 0;
-            attributeDescriptions[3].location = 3;
-            attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
-            attributeDescriptions[3].offset = offsetof(Vertex, shaderIndex);
 
             return attributeDescriptions;
         }

@@ -11,8 +11,8 @@ namespace VCore
 	{
 		m_graphicsPipeline = GraphicsPipeline(vertexPath, fragmentPath);
 		m_descriptorSetLayout = VK_NULL_HANDLE;
-		m_descriptorPools = std::vector<VkDescriptorPool>();
-		m_descriptorSets = std::vector<std::vector<VkDescriptorSet>>();
+		m_descriptorPool = VK_NULL_HANDLE;
+		m_descriptorSets = std::vector<VkDescriptorSet>();
 	}
 
 	Material::Material()
@@ -48,9 +48,10 @@ namespace VCore
 		return m_graphicsPipeline.GetPipelineLayout();
 	}
 
-	void Material::CreateDescriptorSetLayout(LogicalDevice& logicalDevice)
+	void Material::CreateDescriptorSetLayout(std::vector<Texture>& textures, LogicalDevice& logicalDevice)
 	{
 		// Refer to - https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_layout_and_buffer
+		std::vector<VkDescriptorSetLayoutBinding> bindings{};
 
 		VkDescriptorSetLayoutBinding uboLayoutBinding{};
 		uboLayoutBinding.binding = 0;
@@ -59,14 +60,20 @@ namespace VCore
 		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
 
-		VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-		samplerLayoutBinding.binding = 1;
-		samplerLayoutBinding.descriptorCount = 1;
-		samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		samplerLayoutBinding.pImmutableSamplers = nullptr;
-		samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings.push_back(uboLayoutBinding);
 
-		std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+		for (int i = 0; i < textures.size(); i++)
+		{
+			VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+			samplerLayoutBinding.binding = i + 1;
+			samplerLayoutBinding.descriptorCount = 1;
+			samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			samplerLayoutBinding.pImmutableSamplers = nullptr;
+			samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+			bindings.push_back(samplerLayoutBinding);
+		}
+
 		VkDescriptorSetLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -83,25 +90,29 @@ namespace VCore
 		return m_descriptorSetLayout;
 	}
 
-	std::vector<std::vector<VkDescriptorSet>> Material::GetDescriptorSets()
+	std::vector<VkDescriptorSet>& Material::GetDescriptorSets()
 	{
 		return m_descriptorSets;
 	}
 
-	void Material::CreateDescriptorPools(std::vector<Texture> textures, LogicalDevice& logicalDevice)
+	void Material::CreateDescriptorPool(std::vector<Texture>& textures, LogicalDevice& logicalDevice)
 	{
-		for (Texture texture : textures)
-		{
 			VkDescriptorPool newPool = VK_NULL_HANDLE;
 
 			// Refer to - https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_pool_and_sets
 			// And for combined sampler - https://vulkan-tutorial.com/en/Texture_mapping/Combined_image_sampler
 
-			std::array<VkDescriptorPoolSize, 2> poolSizes{};
+			std::vector<VkDescriptorPoolSize> poolSizes{};
+			poolSizes.resize(textures.size() + 1);
+
 			poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			poolSizes[0].descriptorCount = static_cast<uint32_t>(VM_MAX_FRAMES_IN_FLIGHT);
-			poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			poolSizes[1].descriptorCount = static_cast<uint32_t>(VM_MAX_FRAMES_IN_FLIGHT);
+
+			for (int j = 1; j < textures.size() + 1; j++)
+			{
+				poolSizes[j].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				poolSizes[j].descriptorCount = static_cast<uint32_t>(VM_MAX_FRAMES_IN_FLIGHT);
+			}
 
 			VkDescriptorPoolCreateInfo poolInfo{};
 			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -114,65 +125,62 @@ namespace VCore
 				throw std::runtime_error("failed to create descriptor pool!");
 			}
 
-			m_descriptorPools.push_back(newPool);
-		}
+			m_descriptorPool = newPool;
 	}
 
-	void Material::CreateDescriptorSets(std::vector<Texture> textures, Model& model, LogicalDevice& logicalDevice)
+	void Material::CreateDescriptorSets(std::vector<Texture>& textures, Model& model, LogicalDevice& logicalDevice)
 	{
-		m_descriptorSets.resize(textures.size());
+		m_descriptorSets.resize(VM_MAX_FRAMES_IN_FLIGHT);
 
-		for (int i = 0; i < textures.size(); i++)
+		std::vector<VkDescriptorSetLayout> layouts(VM_MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = m_descriptorPool;
+		allocInfo.descriptorSetCount = static_cast<uint32_t>(VM_MAX_FRAMES_IN_FLIGHT);
+		allocInfo.pSetLayouts = layouts.data();
+
+		// Allocate descriptor sets
+		if (vkAllocateDescriptorSets(logicalDevice.GetDevice(), &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
 		{
-			VkDescriptorSet newSet = VK_NULL_HANDLE;
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
 
-			std::vector<VkDescriptorSetLayout> layouts(VM_MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout);
-			VkDescriptorSetAllocateInfo allocInfo{};
-			allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-			allocInfo.descriptorPool = m_descriptorPools[i];
-			allocInfo.descriptorSetCount = static_cast<uint32_t>(VM_MAX_FRAMES_IN_FLIGHT);
-			allocInfo.pSetLayouts = layouts.data();
-
-			// Allocate descriptor sets
-			m_descriptorSets[i].resize(VM_MAX_FRAMES_IN_FLIGHT);
-			if (vkAllocateDescriptorSets(logicalDevice.GetDevice(), &allocInfo, m_descriptorSets[i].data()) != VK_SUCCESS)
-			{
-				throw std::runtime_error("failed to allocate descriptor sets!");
-			}
-
+		for (int i = 0; i < VM_MAX_FRAMES_IN_FLIGHT; i++)
+		{
 			// Populate them
-			for (size_t j = 0; j < VM_MAX_FRAMES_IN_FLIGHT; j++)
-			{
-				VkDescriptorBufferInfo bufferInfo{};
-				bufferInfo.buffer = model.GetUniformBuffers()[j];
-				bufferInfo.offset = 0;
-				bufferInfo.range = sizeof(UniformBufferObject);
+			std::vector<VkWriteDescriptorSet> descriptorWrites{};
+			descriptorWrites.resize(textures.size() + 1);
 
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = model.GetUniformBuffers()[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(UniformBufferObject);
+
+			descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[0].dstSet = m_descriptorSets[i];
+			descriptorWrites[0].dstBinding = 0;
+			descriptorWrites[0].dstArrayElement = 0;
+			descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrites[0].descriptorCount = 1;
+			descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+			for (size_t j = 0; j < textures.size(); j++)
+			{
 				VkDescriptorImageInfo imageInfo{};
 				imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-				imageInfo.imageView = textures[i].GetImageView();
-				imageInfo.sampler = textures[i].GetTextureSampler();
+				imageInfo.imageView = textures[j].GetImageView();
+				imageInfo.sampler = textures[j].GetTextureSampler();
 
-				std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-
-				descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[0].dstSet = m_descriptorSets[i][j];
-				descriptorWrites[0].dstBinding = 0;
-				descriptorWrites[0].dstArrayElement = 0;
-				descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				descriptorWrites[0].descriptorCount = 1;
-				descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-				descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				descriptorWrites[1].dstSet = m_descriptorSets[i][j];
-				descriptorWrites[1].dstBinding = 1;
-				descriptorWrites[1].dstArrayElement = 0;
-				descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-				descriptorWrites[1].descriptorCount = 1;
-				descriptorWrites[1].pImageInfo = &imageInfo;
-
-				vkUpdateDescriptorSets(logicalDevice.GetDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+				descriptorWrites[j + 1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				descriptorWrites[j + 1].dstSet = m_descriptorSets[i];
+				descriptorWrites[j + 1].dstBinding = j + 1;
+				descriptorWrites[j + 1].dstArrayElement = 0;
+				descriptorWrites[j + 1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+				descriptorWrites[j + 1].descriptorCount = 1;
+				descriptorWrites[j + 1].pImageInfo = &imageInfo;
 			}
+
+			vkUpdateDescriptorSets(logicalDevice.GetDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 		}
 	}
 
@@ -186,11 +194,8 @@ namespace VCore
 		vkDestroyDescriptorSetLayout(logicalDevice.GetDevice(), m_descriptorSetLayout, nullptr);
 	}
 
-	void Material::CleanupDescriptorPools(LogicalDevice& logicalDevice)
+	void Material::CleanupDescriptorPool(LogicalDevice& logicalDevice)
 	{
-		for (VkDescriptorPool descriptorPool : m_descriptorPools)
-		{
-			vkDestroyDescriptorPool(logicalDevice.GetDevice(), descriptorPool, nullptr);
-		}
+		vkDestroyDescriptorPool(logicalDevice.GetDevice(), m_descriptorPool, nullptr);
 	}
 }

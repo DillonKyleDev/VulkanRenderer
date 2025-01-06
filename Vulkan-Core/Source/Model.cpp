@@ -72,8 +72,6 @@ namespace VCore
 
                 vertex.color = { 1.0f, 1.0f, 1.0f };
 
-                vertex.shaderIndex = 0;
-
                 // Keep only unique vertices
                 if (uniqueVertices.count(vertex) == 0)
                 {
@@ -152,7 +150,7 @@ namespace VCore
         }
     }
 
-    void Model::RecordCommandBuffer(uint32_t imageIndex, VkRenderPass renderPass, WinSys &winSystem, VkPipeline graphicsPipeline, VkPipelineLayout pipelineLayout, VkDescriptorSet descriptorSet)
+    void Model::RecordCommandBuffer(uint32_t imageIndex, VkRenderPass &renderPass, WinSys& winSystem, VkPipeline& graphicsPipeline, VkPipelineLayout& pipelineLayout, VkDescriptorSet& descriptorSet)
     {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -166,8 +164,8 @@ namespace VCore
 
         // For Depth buffer
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-        clearValues[1].depthStencil = { 1.0f, 0 };
+        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
+        clearValues[1].depthStencil = { 1.0f, 0 };        
 
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -175,9 +173,8 @@ namespace VCore
         renderPassInfo.framebuffer = winSystem.GetFrameBuffers()[imageIndex];
         renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = winSystem.GetExtent();
-        VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
+        renderPassInfo.pClearValues = clearValues.data();        
 
         // Begin render pass
         vkCmdBeginRenderPass(m_commandBuffer[VM_currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -209,10 +206,6 @@ namespace VCore
         scissor.extent = winSystem.GetExtent();
         vkCmdSetScissor(m_commandBuffer[VM_currentFrame], 0, 1, &scissor);
 
-        //for (int i = 0; i < m_images.size(); i++)
-        //{
-        //    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, i, 1, descriptorSets[i][VM_currentFrame], 0, nullptr);
-        //}vvv
         vkCmdBindDescriptorSets(m_commandBuffer[VM_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
         // Refer to - https://vulkan-tutorial.com/en/Vertex_buffers/Index_buffer
@@ -252,7 +245,7 @@ namespace VCore
         }
     }
 
-    void Model::UpdateUniformBuffer(uint32_t currentImage, WinSys& winSystem)
+    void Model::UpdateUniformBuffer(uint32_t currentImage, WinSys& winSystem, float multiplier)
     {
         // This function will generate a new transformation every frame to make the geometry spin around.We need to include two new headers to implement this functionality:
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -261,7 +254,7 @@ namespace VCore
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * multiplier * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), winSystem.GetExtent().width / (float)winSystem.GetExtent().height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
@@ -269,9 +262,9 @@ namespace VCore
         memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
-    VkCommandBuffer& Model::GetCurrentCommandBuffer()
+    std::vector<VkCommandBuffer>& Model::GetCommandBuffer()
     {
-        return m_commandBuffer[VM_currentFrame];
+        return m_commandBuffer;
     }
 
     std::vector<VkBuffer>& Model::GetUniformBuffers()

@@ -20,22 +20,22 @@ namespace VCore
     {
     }
 
-    VkDevice LogicalDevice::GetDevice()
+    VkDevice& LogicalDevice::GetDevice()
     {
         return m_device;
     }
 
-    VkQueue LogicalDevice::GetGraphicsQueue()
+    VkQueue& LogicalDevice::GetGraphicsQueue()
     {
         return m_graphicsQueue;
     }
 
-    VkQueue LogicalDevice::GetPresentQueue()
+    VkQueue& LogicalDevice::GetPresentQueue()
     {
         return m_presentQueue;
     }
 
-    void LogicalDevice::Init(PhysicalDevice physicalDevice, VkSurfaceKHR surface)
+    void LogicalDevice::Init(PhysicalDevice &physicalDevice, VkSurfaceKHR surface)
     {
         // Create logical device to interface with the m_phyiscalDevice and queues for the device
 

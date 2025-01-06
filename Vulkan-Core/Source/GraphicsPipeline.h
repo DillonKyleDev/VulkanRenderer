@@ -23,7 +23,7 @@ namespace VCore
 		void SetVertexPath(std::string path);
 		void SetFragmentPath(std::string path);
 		VkShaderModule CreateShaderModule(const std::vector<char>& code, LogicalDevice& logicalDevice);
-		void CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout);
+		void CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass, VkDescriptorSetLayout& descriptorSetLayout);
 		VkPipeline& GetGraphicsPipeline();
 		VkPipelineLayout& GetPipelineLayout();
 		void Cleanup(LogicalDevice& logicalDevice);

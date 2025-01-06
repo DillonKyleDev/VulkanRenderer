@@ -18,10 +18,10 @@ namespace VCore
 
 		void SetTexturePath(std::string path);
 		std::string GetTexturePath();
-		VkImageView GetImageView();
-		VkImage GetImage();
-		VkDeviceMemory GetTextureImageMemory();
-		VkSampler GetTextureSampler();
+		VkImageView& GetImageView();
+		VkImage& GetImage();
+		VkDeviceMemory& GetTextureImageMemory();
+		VkSampler& GetTextureSampler();
 		uint32_t GetMipLevels();
 		void CreateTextureImage(WinSys& winSystem, VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void CreateTextureSampler(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);

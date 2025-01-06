@@ -2,9 +2,6 @@
 #include "VulkanManager.h"
 #include "Helper.h"
 
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE // Depth buffer helper
 // Refer to - https://vulkan-tutorial.com/en/Uniform_buffers/Descriptor_layout_and_buffer
 #include <gtc/matrix_transform.hpp> // Not used currently but might need it later
 
@@ -25,9 +22,16 @@ namespace VCore
         m_renderPass = RenderPass();
 
         m_vikingRoom = GameObject();
-        m_vikingRoom.GetMaterial().SetVertexPath("../Shaders/vert.spv");
-        m_vikingRoom.GetMaterial().SetFragmentPath("../Shaders/frag.spv");
+        Material roomMaterial = Material("../Shaders/vert.spv", "../Shaders/frag.spv");
+        m_vikingRoom.SetMaterial(roomMaterial);
+        m_vikingRoom.GetModel().SetModelPath("../Models/viking_room.obj");
         m_vikingRoom.AddTexture("../Textures/viking_room.png");
+
+        m_ghostHand = GameObject();
+        Material handMaterial = Material("../Shaders/vert.spv", "../Shaders/frag.spv");
+        m_ghostHand.SetMaterial(handMaterial);
+        m_ghostHand.GetModel().SetModelPath("../Models/viking_room.obj");
+        m_ghostHand.AddTexture("../Textures/viking_room.png");
 
         // gpu communication
         m_commandPool = VK_NULL_HANDLE;
@@ -41,57 +45,37 @@ namespace VCore
     {
     }
 
-    void VulkanManager::run(bool& _quit)
+    void VulkanManager::Run(bool& _quit)
     {
         m_winSystem.InitWindow();
-        initVulkan();
-        mainLoop(_quit);
-        cleanup();
+        InitVulkan();
+        MainLoop(_quit);
+        Cleanup();
     }
 
-    void VulkanManager::initVulkan()
+    void VulkanManager::InitVulkan()
     {
-        createInstance();
+        CreateInstance();
         VM_validationLayers.SetupDebugMessenger(m_instance);
         m_winSystem.CreateSurface(m_instance);
         m_physicalDevice.Init(m_instance, m_winSystem.GetSurface());
         m_logicalDevice.Init(m_physicalDevice, m_winSystem.GetSurface());
-
         m_winSystem.CreateSwapChain(m_physicalDevice, m_logicalDevice);
         m_winSystem.CreateImageViews(m_logicalDevice);
-
         m_renderPass.CreateRenderPass(m_winSystem, m_physicalDevice, m_logicalDevice);
-       
-        m_vikingRoom.GetMaterial().CreateDescriptorSetLayout(m_logicalDevice);
-        m_vikingRoom.GetMaterial().CreateGraphicsPipeline(m_logicalDevice, m_winSystem, m_renderPass);
-
         m_winSystem.CreateColorResources(m_physicalDevice, m_logicalDevice);
         m_winSystem.CreateDepthResources(m_physicalDevice, m_logicalDevice);
         m_winSystem.CreateFramebuffers(m_logicalDevice, m_renderPass.GetRenderPass());
 
-        createCommandPool();
+        CreateCommandPool();
 
-        for (Texture &texture : m_vikingRoom.GetTextures())
-        {
-            texture.CreateTextureImage(m_winSystem, m_commandPool, m_physicalDevice, m_logicalDevice);
-            texture.CreateTextureSampler(m_physicalDevice, m_logicalDevice);
-        }
+        m_vikingRoom.CreateResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);   
+        m_ghostHand.CreateResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);
 
-        m_vikingRoom.GetModel().SetModelPath("../Models/viking_room.obj");
-        m_vikingRoom.GetModel().LoadModel();
-        m_vikingRoom.GetModel().CreateVertexBuffer(m_commandPool, m_physicalDevice, m_logicalDevice);
-        m_vikingRoom.GetModel().CreateIndexBuffer(m_commandPool, m_physicalDevice, m_logicalDevice);
-        m_vikingRoom.GetModel().CreateUniformBuffers(m_physicalDevice, m_logicalDevice);
-        m_vikingRoom.GetModel().CreateCommandBuffers(m_commandPool, m_logicalDevice);
-
-        m_vikingRoom.GetMaterial().CreateDescriptorPools(m_vikingRoom.GetTextures(), m_logicalDevice);
-        m_vikingRoom.GetMaterial().CreateDescriptorSets(m_vikingRoom.GetTextures(), m_vikingRoom.GetModel(), m_logicalDevice);
-       
-        
-        createSyncObjects();
+        CreateSyncObjects();
     }
 
-    void VulkanManager::createInstance()
+    void VulkanManager::CreateInstance()
     {
         // Validation layer setup for debugger
         if (b_ENABLE_VALIDATION_LAYERS && !VM_validationLayers.CheckSupport())
@@ -102,7 +86,7 @@ namespace VCore
         // Some details about our application
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "Render Triangle";
+        appInfo.pApplicationName = "Vulkan Renderer";
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -158,20 +142,20 @@ namespace VCore
         }
     }
 
-    void VulkanManager::mainLoop(bool& _quit)
+    void VulkanManager::MainLoop(bool& _quit)
     {
         // Window is completely controlled by glfw, including closing using the "x" button on top right (we need event handling)
         while (!glfwWindowShouldClose(m_winSystem.GetWindow()))
         {
             glfwPollEvents();
-            drawFrame();
+            DrawFrame();
         }
 
         //_quit = glfwWindowShouldClose(m_winSystem.GetWindow());
         vkDeviceWaitIdle(m_logicalDevice.GetDevice());
     }
 
-    void VulkanManager::createCommandPool()
+    void VulkanManager::CreateCommandPool()
     {
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Command_buffers
         // Need a command pool to store all commands to send in bulk for Vulkan to batch process together
@@ -189,7 +173,7 @@ namespace VCore
         }
     }
 
-    void VulkanManager::createSyncObjects()
+    void VulkanManager::CreateSyncObjects()
     {
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Rendering_and_presentation
        
@@ -217,7 +201,7 @@ namespace VCore
         }
     }
 
-    void VulkanManager::drawFrame()
+    void VulkanManager::DrawFrame()
     {
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Rendering_and_presentation
         
@@ -245,15 +229,17 @@ namespace VCore
         // After waiting && checking the integrity/recreating the swap chain if needed, we need to manually reset the fence to the unsignaled state with the vkResetFences call:
         vkResetFences(m_logicalDevice.GetDevice(), 1, &m_inFlightFence[VM_currentFrame]);
 
-
-        // LOOK AT THIS ONE AND THE DESCRIPTORSETS[0][0] AT THE END IT NEEDS ATTENTION !!!
         // 
         // Record the command buffer
         // Reset to make sure it is able to be recorded
         m_vikingRoom.GetModel().ResetCommandBuffer();
-        m_vikingRoom.GetModel().RecordCommandBuffer(imageIndex, m_renderPass.GetRenderPass(), m_winSystem, m_vikingRoom.GetMaterial().GetGraphicsPipeline(), m_vikingRoom.GetMaterial().GetPipelineLayout(), m_vikingRoom.GetMaterial().GetDescriptorSets()[0][0]);
-        m_vikingRoom.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem);
+        m_ghostHand.GetModel().ResetCommandBuffer();
+        m_vikingRoom.GetModel().RecordCommandBuffer(imageIndex, m_renderPass.GetRenderPass(), m_winSystem, m_vikingRoom.GetMaterial().GetGraphicsPipeline(), m_vikingRoom.GetMaterial().GetPipelineLayout(), m_vikingRoom.GetMaterial().GetDescriptorSets()[VM_currentFrame]);
+        m_ghostHand.GetModel().RecordCommandBuffer(imageIndex, m_renderPass.GetRenderPass(), m_winSystem, m_vikingRoom.GetMaterial().GetGraphicsPipeline(), m_vikingRoom.GetMaterial().GetPipelineLayout(), m_ghostHand.GetMaterial().GetDescriptorSets()[VM_currentFrame]);
+        m_vikingRoom.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem, 0);
+        m_ghostHand.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem, 1.0f);
 
+        VkCommandBuffer commandBuffers[2] = { m_vikingRoom.GetModel().GetCommandBuffer()[VM_currentFrame], m_ghostHand.GetModel().GetCommandBuffer()[VM_currentFrame] };
         // Submit the command buffer
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -263,17 +249,19 @@ namespace VCore
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &m_vikingRoom.GetModel().GetCurrentCommandBuffer();
+        submitInfo.commandBufferCount = 2;
+        submitInfo.pCommandBuffers = commandBuffers;
 
         VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore[VM_currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
+
         if (vkQueueSubmit(m_logicalDevice.GetGraphicsQueue(), 1, &submitInfo, m_inFlightFence[VM_currentFrame]) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to submit draw command buffer.");
         }
+
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -303,7 +291,7 @@ namespace VCore
     }
 
 
-    void VulkanManager::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+    void VulkanManager::FramebufferResizeCallback(GLFWwindow* window, int width, int height)
     {
         // Called when GLFW detects the window has been resized.  It has a pointer to our app that we gave it in initWindow that we use here to set our m_b_framebufferResized member to true
         auto app = reinterpret_cast<VulkanManager*>(glfwGetWindowUserPointer(window));
@@ -311,7 +299,7 @@ namespace VCore
     }
 
 
-    void VulkanManager::cleanup()
+    void VulkanManager::Cleanup()
     {
         // Make sure to cleanup all other resources BEFORE the Vulkan m_instance is destroyed (in order of creation if possible)
 
@@ -335,7 +323,7 @@ namespace VCore
         m_vikingRoom.GetModel().CleanupUniformBuffers(m_logicalDevice);
 
         // Descriptor Pool & sets implicitly  
-        m_vikingRoom.GetMaterial().CleanupDescriptorPools(m_logicalDevice);
+        m_vikingRoom.GetMaterial().CleanupDescriptorPool(m_logicalDevice);
         m_vikingRoom.GetMaterial().CleanupDescriptorSetLayout(m_logicalDevice);
        
         m_vikingRoom.GetModel().CleanupIndexBuffers(m_logicalDevice);
