@@ -17,12 +17,18 @@ namespace VCore
 
     GraphicsPipeline::GraphicsPipeline()
     {
-
     }
 
 	GraphicsPipeline::~GraphicsPipeline()
 	{
 	}
+
+    void GraphicsPipeline::Cleanup(LogicalDevice& logicalDevice)
+    {
+        vkDestroyPipeline(logicalDevice.GetDevice(), m_graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(logicalDevice.GetDevice(), m_pipelineLayout, nullptr);
+    }
+
 
     void GraphicsPipeline::SetVertexPath(std::string path)
     {
@@ -198,13 +204,18 @@ namespace VCore
 
 
         // Pipeline Layout config
+        VkPushConstantRange translateRange = {};
+        translateRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        translateRange.offset = 0;
+        translateRange.size = 12; // %v4float (vec4) is defined as 16 bytes
+
         std::vector<VkDescriptorSetLayout> layouts(VM_MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 2;
         pipelineLayoutInfo.pSetLayouts = layouts.data();
-        pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-        pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+        pipelineLayoutInfo.pushConstantRangeCount = 1; // Optional
+        pipelineLayoutInfo.pPushConstantRanges = &translateRange; // Optional
 
 
         if (vkCreatePipelineLayout(logicalDevice.GetDevice(), &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
@@ -273,11 +284,5 @@ namespace VCore
     VkPipelineLayout& GraphicsPipeline::GetPipelineLayout()
     {
         return m_pipelineLayout;
-    }
-
-    void GraphicsPipeline::Cleanup(LogicalDevice& logicalDevice)
-    {
-        vkDestroyPipeline(logicalDevice.GetDevice(), m_graphicsPipeline, nullptr);
-        vkDestroyPipelineLayout(logicalDevice.GetDevice(), m_pipelineLayout, nullptr);
     }
 }

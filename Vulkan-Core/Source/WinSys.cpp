@@ -1,5 +1,4 @@
 #include "WinSys.h"
-#include "WinSys.h"
 #include "VulkanManager.h"
 #include "Helper.h"
 
@@ -46,6 +45,41 @@ namespace VCore
     {
     }
 
+    void WinSys::CleanupSystem(VkInstance instance)
+    {
+        vkDestroySurfaceKHR(instance, m_surface, nullptr);
+        glfwDestroyWindow(m_window);
+        glfwTerminate();
+    }
+
+    void WinSys::CleanupSwapChain(LogicalDevice& logicalDevice)
+    {
+        // Antialiasing (msaa) color samples
+        vkDestroyImageView(logicalDevice.GetDevice(), m_colorImageView, nullptr);
+        vkDestroyImage(logicalDevice.GetDevice(), m_colorImage, nullptr);
+        vkFreeMemory(logicalDevice.GetDevice(), m_colorImageMemory, nullptr);
+
+        // Depth buffer testing
+        vkDestroyImageView(logicalDevice.GetDevice(), m_depthImageView, nullptr);
+        vkDestroyImage(logicalDevice.GetDevice(), m_depthImage, nullptr);
+        vkFreeMemory(logicalDevice.GetDevice(), m_depthImageMemory, nullptr);
+
+        // Image views
+        for (auto imageView : m_swapChainImageViews)
+        {
+            vkDestroyImageView(logicalDevice.GetDevice(), imageView, nullptr);
+        }
+        // Framebuffers
+        for (VkFramebuffer framebuffer : m_swapChainFramebuffers)
+        {
+            vkDestroyFramebuffer(logicalDevice.GetDevice(), framebuffer, nullptr);
+        }
+
+        // Swapchain
+        vkDestroySwapchainKHR(logicalDevice.GetDevice(), m_swapChain, nullptr);
+    }
+
+
     void WinSys::InitWindow()
     {
         glfwInit();
@@ -72,11 +106,6 @@ namespace VCore
         }
     }
 
-    //void WinSys::CreateRenderPass(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice)
-    //{
-    //    m_renderPass.CreateRenderPass(*this, physicalDevice, logicalDevice);
-    //}
-
     GLFWwindow* WinSys::GetWindow()
     {
         return m_window;
@@ -85,28 +114,6 @@ namespace VCore
     VkSurfaceKHR WinSys::GetSurface()
     {
         return m_surface;
-    }
-
-    //VkRenderPass& WinSys::GetRenderPass()
-    //{
-    //    return m_renderPass.GetRenderPass();
-    //}
-
-    //void WinSys::CreateResources(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice)
-    //{
-    //    CreateSwapChain(physicalDevice, logicalDevice);
-    //    CreateImageViews(logicalDevice);
-    //    m_renderPass.CreateRenderPass(*this, physicalDevice, logicalDevice);
-    //    CreateColorResources(physicalDevice, logicalDevice);
-    //    CreateDepthResources(physicalDevice, logicalDevice);
-    //    CreateFramebuffers(logicalDevice, m_renderPass.GetRenderPass());
-    //}
-
-    void WinSys::Cleanup(VkInstance instance)
-    {
-        vkDestroySurfaceKHR(instance, m_surface, nullptr);
-        glfwDestroyWindow(m_window);
-        glfwTerminate();
     }
 
     VkSurfaceFormatKHR WinSys::ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -259,33 +266,6 @@ namespace VCore
         CreateFramebuffers(logicalDevice, renderPass);
     }
 
-    void WinSys::CleanupSwapChain(LogicalDevice &logicalDevice)
-    {
-        // Antialiasing (msaa) color samples
-        vkDestroyImageView(logicalDevice.GetDevice(), m_colorImageView, nullptr);
-        vkDestroyImage(logicalDevice.GetDevice(), m_colorImage, nullptr);
-        vkFreeMemory(logicalDevice.GetDevice(), m_colorImageMemory, nullptr);
-
-        // Depth buffer testing
-        vkDestroyImageView(logicalDevice.GetDevice(), m_depthImageView, nullptr);
-        vkDestroyImage(logicalDevice.GetDevice(), m_depthImage, nullptr);
-        vkFreeMemory(logicalDevice.GetDevice(), m_depthImageMemory, nullptr);
-
-        // Image views
-        for (auto imageView : m_swapChainImageViews)
-        {
-            vkDestroyImageView(logicalDevice.GetDevice(), imageView, nullptr);
-        }
-        // Framebuffers
-        for (VkFramebuffer framebuffer : m_swapChainFramebuffers)
-        {
-            vkDestroyFramebuffer(logicalDevice.GetDevice(), framebuffer, nullptr);
-        }
-
-        // Swapchain
-        vkDestroySwapchainKHR(logicalDevice.GetDevice(), m_swapChain, nullptr);
-    }
-
     void WinSys::CreateFramebuffers(LogicalDevice &logicalDevice, VkRenderPass renderPass)
     {
         // More info here - https://vulkan-tutorial.com/en/Drawing_a_triangle/Drawing/Framebuffers
@@ -353,9 +333,9 @@ namespace VCore
         return imageView;
     }
 
-    void WinSys::CreateColorResources(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice) {
+    void WinSys::CreateColorResources(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice) 
+    {
         // Refer to - https://vulkan-tutorial.com/Multisampling
-
         VkFormat colorFormat = m_swapChainImageFormat;
 
         CreateImage(m_swapChainExtent.width, m_swapChainExtent.height, 1, m_msaaSamples, colorFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_colorImage, m_colorImageMemory, physicalDevice, logicalDevice);
@@ -622,7 +602,7 @@ namespace VCore
 
         if (!pixels)
         {
-            throw std::runtime_error("failed to load texture image!");
+            throw std::runtime_error("failed to load texture image: " + path);
         }
 
         mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;

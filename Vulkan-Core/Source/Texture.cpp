@@ -1,8 +1,6 @@
 #include "Texture.h"
 #include "VulkanManager.h"
-#include "Helper.h"
 
-#include <array>
 #include <stdexcept>
 
 
@@ -20,8 +18,16 @@ namespace VCore
 
 	Texture::~Texture()
 	{
-
 	}
+
+    void Texture::Cleanup(LogicalDevice& logicalDevice)
+    {
+        vkDestroySampler(logicalDevice.GetDevice(), m_textureSampler, nullptr);
+        vkFreeMemory(logicalDevice.GetDevice(), m_textureImageMemory, nullptr);
+        vkDestroyImage(logicalDevice.GetDevice(), m_image, nullptr);
+        vkDestroyImageView(logicalDevice.GetDevice(), m_imageView, nullptr);
+    }
+
 
     void Texture::SetTexturePath(std::string path)
     {
@@ -96,13 +102,5 @@ namespace VCore
         {
             throw std::runtime_error("failed to create texture sampler!");
         }
-    }
-
-    void Texture::Cleanup(LogicalDevice& logicalDevice)
-    {
-        vkDestroySampler(logicalDevice.GetDevice(), m_textureSampler, nullptr);
-        vkFreeMemory(logicalDevice.GetDevice(), m_textureImageMemory, nullptr);
-        vkDestroyImage(logicalDevice.GetDevice(), m_image, nullptr);
-        vkDestroyImageView(logicalDevice.GetDevice(), m_imageView, nullptr);
     }
 }

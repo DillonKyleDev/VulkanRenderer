@@ -17,15 +17,13 @@ namespace VCore
 	public:
 		WinSys();
 		~WinSys();
+		void CleanupSystem(VkInstance instance);
+		void CleanupSwapChain(LogicalDevice& logicalDevice);
 
 		void InitWindow();
-		void CreateSurface(VkInstance instance);
-		void Cleanup(VkInstance instance);
+		void CreateSurface(VkInstance instance);		
 		GLFWwindow* GetWindow();
 		VkSurfaceKHR GetSurface();
-
-		void CreateResources(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
-
 		// NOTE FROM WIKI: If the swapChainAdequate conditions were met then the support is definitely sufficient, but there may still be many different modes of varying optimality. We'll now write a couple of functions to find the right settings for the best possible swap chain. There are three types of settings to determine:
 		// Surface format (color depth)
 		VkSurfaceFormatKHR ChooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -35,7 +33,6 @@ namespace VCore
 		VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 		void CreateSwapChain(PhysicalDevice &physicalDevice, LogicalDevice &logicalDevice);
 		void RecreateSwapChain(LogicalDevice &logicalDevice, PhysicalDevice &physicalDevice, VkRenderPass renderPass);
-		void CleanupSwapChain(LogicalDevice &logicalDevice);
 		void CreateFramebuffers(LogicalDevice &logicalDevice, VkRenderPass renderPass);
 		void CreateImageViews(LogicalDevice &logicalDevice);
 		VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, LogicalDevice &logicalDevice);

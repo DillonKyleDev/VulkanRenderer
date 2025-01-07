@@ -12,6 +12,7 @@
 #include <glm.hpp>
 
 #include <vector>
+#include <map>
 
 
 namespace VCore
@@ -51,18 +52,14 @@ namespace VCore
         void DrawFrame();
         void Cleanup();
 
-        GameObject m_vikingRoom;
-        GameObject m_ghostHand;
-
+        std::vector<GameObject> m_gameObjects;
+        std::map<std::string, std::shared_ptr<Material>> m_materials;
         VkInstance m_instance;
         WinSys m_winSystem;
         PhysicalDevice m_physicalDevice;
         LogicalDevice m_logicalDevice;
         RenderPass m_renderPass;
-
         bool m_b_framebufferResized;
-        
-        // gpu communication
         VkCommandPool m_commandPool;
         std::vector<VkSemaphore> m_imageAvailableSemaphore;
         std::vector<VkSemaphore> m_renderFinishedSemaphore;

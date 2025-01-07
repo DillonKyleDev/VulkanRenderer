@@ -6,6 +6,7 @@
 #include <gtc/matrix_transform.hpp> // Not used currently but might need it later
 
 #include <chrono> // Time keeping
+#include <memory>
 
 
 namespace VCore
@@ -21,29 +22,76 @@ namespace VCore
         m_logicalDevice = LogicalDevice();
         m_renderPass = RenderPass();
 
-        m_vikingRoom = GameObject();
-        Material roomMaterial = Material("../Shaders/vert.spv", "../Shaders/frag.spv");
-        m_vikingRoom.SetMaterial(roomMaterial);
-        m_vikingRoom.GetModel().SetModelPath("../Models/viking_room.obj");
-        m_vikingRoom.AddTexture("../Textures/viking_room.png");
-
-        m_ghostHand = GameObject();
-        Material handMaterial = Material("../Shaders/vert.spv", "../Shaders/frag.spv");
-        m_ghostHand.SetMaterial(handMaterial);
-        m_ghostHand.GetModel().SetModelPath("../Models/viking_room.obj");
-        m_ghostHand.AddTexture("../Textures/viking_room.png");
-
         // gpu communication
         m_commandPool = VK_NULL_HANDLE;
         m_imageAvailableSemaphore = std::vector<VkSemaphore>();
         m_renderFinishedSemaphore = std::vector<VkSemaphore>();
         m_inFlightFence = std::vector<VkFence>();
         m_b_framebufferResized = false;
+
+        m_materials = std::map<std::string, std::shared_ptr<Material>>();
+
+        std::shared_ptr<Material> roomMaterial = std::make_shared<Material>("../Shaders/compiledShaders/vert.spv", "../Shaders/compiledShaders/frag.spv");
+        std::shared_ptr<Material> blueMaterial = std::make_shared<Material>("../Shaders/compiledShaders/vert2.spv", "../Shaders/compiledShaders/frag2.spv");
+        roomMaterial->AddTexture("../Textures/viking_room.png");       
+        blueMaterial->AddTexture("../Textures/blue.png");
+        m_materials.emplace("room", roomMaterial);
+        m_materials.emplace("blue", blueMaterial);
+
+        GameObject vikingRoom;
+        GameObject ghostHand;
+        vikingRoom.SetMaterial(roomMaterial);
+        vikingRoom.GetModel().SetModelPath("../Models/viking_room.obj");
+        ghostHand.SetMaterial(blueMaterial);
+        ghostHand.GetModel().SetModelPath("../Models/ghostHand.obj");
+        
+        m_gameObjects = std::vector<GameObject>();
+        m_gameObjects.push_back(vikingRoom);
+        m_gameObjects.push_back(ghostHand);
     }
 
     VulkanManager::~VulkanManager()
     {
     }
+
+    void VulkanManager::Cleanup()
+    {
+        // Semaphores and Fences
+        for (size_t i = 0; i < VM_MAX_FRAMES_IN_FLIGHT; i++)
+        {
+            vkDestroySemaphore(m_logicalDevice.GetDevice(), m_imageAvailableSemaphore[i], nullptr);
+            vkDestroySemaphore(m_logicalDevice.GetDevice(), m_renderFinishedSemaphore[i], nullptr);
+            vkDestroyFence(m_logicalDevice.GetDevice(), m_inFlightFence[i], nullptr);
+        }
+
+        m_winSystem.CleanupSwapChain(m_logicalDevice);
+
+        for (std::pair<std::string, std::shared_ptr<Material>> materialPair : m_materials)
+        {
+            materialPair.second->CleanupDescriptorSetLayout(m_logicalDevice);
+            materialPair.second->CleanupGraphicsPipeline(m_logicalDevice);
+        }
+
+        for (GameObject& object : m_gameObjects)
+        {
+            object.CleanupDescriptorPool(m_logicalDevice);
+            object.GetModel().CleanupUniformBuffers(m_logicalDevice);
+            object.GetModel().CleanupIndexBuffers(m_logicalDevice);
+            object.GetModel().CleanupVertexBuffers(m_logicalDevice);
+        }
+
+        vkDestroyCommandPool(m_logicalDevice.GetDevice(), m_commandPool, nullptr);
+
+        m_renderPass.Cleanup(m_logicalDevice);
+        m_logicalDevice.Cleanup();
+        m_physicalDevice.Cleanup();
+        VM_validationLayers.Cleanup(m_instance);
+        m_winSystem.CleanupSystem(m_instance);
+
+        // Destroy Vulkan instance
+        vkDestroyInstance(m_instance, nullptr);
+    }
+
 
     void VulkanManager::Run(bool& _quit)
     {
@@ -66,11 +114,18 @@ namespace VCore
         m_winSystem.CreateColorResources(m_physicalDevice, m_logicalDevice);
         m_winSystem.CreateDepthResources(m_physicalDevice, m_logicalDevice);
         m_winSystem.CreateFramebuffers(m_logicalDevice, m_renderPass.GetRenderPass());
-
         CreateCommandPool();
+        m_renderPass.CreateCommandBuffers(m_commandPool, m_logicalDevice);
 
-        m_vikingRoom.CreateResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);   
-        m_ghostHand.CreateResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);
+        for (std::pair<std::string, std::shared_ptr<Material>> materialPair : m_materials)
+        {
+            materialPair.second->CreateMaterialResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);       
+        }
+
+        for (GameObject& object : m_gameObjects)
+        {
+            object.CreateResources(m_winSystem, m_commandPool, m_renderPass, m_physicalDevice, m_logicalDevice);
+        }
 
         CreateSyncObjects();
     }
@@ -229,17 +284,18 @@ namespace VCore
         // After waiting && checking the integrity/recreating the swap chain if needed, we need to manually reset the fence to the unsignaled state with the vkResetFences call:
         vkResetFences(m_logicalDevice.GetDevice(), 1, &m_inFlightFence[VM_currentFrame]);
 
-        // 
-        // Record the command buffer
-        // Reset to make sure it is able to be recorded
-        m_vikingRoom.GetModel().ResetCommandBuffer();
-        m_ghostHand.GetModel().ResetCommandBuffer();
-        m_vikingRoom.GetModel().RecordCommandBuffer(imageIndex, m_renderPass.GetRenderPass(), m_winSystem, m_vikingRoom.GetMaterial().GetGraphicsPipeline(), m_vikingRoom.GetMaterial().GetPipelineLayout(), m_vikingRoom.GetMaterial().GetDescriptorSets()[VM_currentFrame]);
-        m_ghostHand.GetModel().RecordCommandBuffer(imageIndex, m_renderPass.GetRenderPass(), m_winSystem, m_vikingRoom.GetMaterial().GetGraphicsPipeline(), m_vikingRoom.GetMaterial().GetPipelineLayout(), m_ghostHand.GetMaterial().GetDescriptorSets()[VM_currentFrame]);
-        m_vikingRoom.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem, 0);
-        m_ghostHand.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem, 1.0f);
 
-        VkCommandBuffer commandBuffers[2] = { m_vikingRoom.GetModel().GetCommandBuffer()[VM_currentFrame], m_ghostHand.GetModel().GetCommandBuffer()[VM_currentFrame] };
+        m_renderPass.BeginRenderPass(imageIndex, m_winSystem);
+
+        for (GameObject &object : m_gameObjects)
+        {
+            m_renderPass.RecordCommandBuffer(imageIndex, m_winSystem, object);
+            object.GetModel().UpdateUniformBuffer(VM_currentFrame, m_winSystem, 0.5f);
+        }
+
+        m_renderPass.EndRenderPass();
+
+
         // Submit the command buffer
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -249,8 +305,8 @@ namespace VCore
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
-        submitInfo.commandBufferCount = 2;
-        submitInfo.pCommandBuffers = commandBuffers;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &m_renderPass.GetCommandBuffers()[VM_currentFrame];
 
         VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore[VM_currentFrame] };
         submitInfo.signalSemaphoreCount = 1;
@@ -261,7 +317,6 @@ namespace VCore
         {
             throw std::runtime_error("failed to submit draw command buffer.");
         }
-
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -290,57 +345,10 @@ namespace VCore
         VM_currentFrame = (VM_currentFrame + 1) % VM_MAX_FRAMES_IN_FLIGHT;
     }
 
-
     void VulkanManager::FramebufferResizeCallback(GLFWwindow* window, int width, int height)
     {
         // Called when GLFW detects the window has been resized.  It has a pointer to our app that we gave it in initWindow that we use here to set our m_b_framebufferResized member to true
         auto app = reinterpret_cast<VulkanManager*>(glfwGetWindowUserPointer(window));
         app->m_b_framebufferResized = true;
-    }
-
-
-    void VulkanManager::Cleanup()
-    {
-        // Make sure to cleanup all other resources BEFORE the Vulkan m_instance is destroyed (in order of creation if possible)
-
-        // Semaphores and Fences
-        for (size_t i = 0; i < VM_MAX_FRAMES_IN_FLIGHT; i++)
-        {
-            vkDestroySemaphore(m_logicalDevice.GetDevice(), m_imageAvailableSemaphore[i], nullptr);
-            vkDestroySemaphore(m_logicalDevice.GetDevice(), m_renderFinishedSemaphore[i], nullptr);
-            vkDestroyFence(m_logicalDevice.GetDevice(), m_inFlightFence[i], nullptr);
-        }
-        
-        // Swap Chain resources
-        m_winSystem.CleanupSwapChain(m_logicalDevice);
-
-        // Texture resources
-        for (Texture &texture : m_vikingRoom.GetTextures())
-        {
-            texture.Cleanup(m_logicalDevice);
-        }
-       
-        m_vikingRoom.GetModel().CleanupUniformBuffers(m_logicalDevice);
-
-        // Descriptor Pool & sets implicitly  
-        m_vikingRoom.GetMaterial().CleanupDescriptorPool(m_logicalDevice);
-        m_vikingRoom.GetMaterial().CleanupDescriptorSetLayout(m_logicalDevice);
-       
-        m_vikingRoom.GetModel().CleanupIndexBuffers(m_logicalDevice);
-        m_vikingRoom.GetModel().CleanupVertexBuffers(m_logicalDevice);
-
-        // Command Pool
-        vkDestroyCommandPool(m_logicalDevice.GetDevice(), m_commandPool, nullptr);
-
-        m_vikingRoom.GetMaterial().CleanupGraphicsPipeline(m_logicalDevice);
-
-        m_renderPass.Cleanup(m_logicalDevice);
-        m_logicalDevice.Cleanup();
-        m_physicalDevice.Cleanup();
-        VM_validationLayers.Cleanup(m_instance);
-        m_winSystem.Cleanup(m_instance);
- 
-        // Destroy Vulkan instance
-        vkDestroyInstance(m_instance, nullptr);
     }
 }

@@ -17,23 +17,22 @@ namespace VCore
 	public:
 		Model();
 		~Model();
+		void CleanupUniformBuffers(LogicalDevice& logicalDevice);
+		void CleanupIndexBuffers(LogicalDevice& logicalDevice);
+		void CleanupVertexBuffers(LogicalDevice& logicalDevice);
 
 		void SetModelPath(std::string path);
 		std::string GetModelPath();
 		void LoadModel();
 		void CreateVertexBuffer(VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void CreateIndexBuffer(VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
-		void CreateCommandBuffers(VkCommandPool commandPool, LogicalDevice& logicalDevice);
-		void RecordCommandBuffer(uint32_t imageIndex, VkRenderPass& renderPass, WinSys& winSystem, VkPipeline& graphicsPipeline, VkPipelineLayout& pipelineLayout, VkDescriptorSet& descriptorSet);
-		void ResetCommandBuffer();
 		void CreateUniformBuffers(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void UpdateUniformBuffer(uint32_t currentImage, WinSys& winSystem, float multiplier);
 		std::vector<VkCommandBuffer>& GetCommandBuffer();
 		std::vector<VkBuffer>& GetUniformBuffers();
-		void CleanupUniformBuffers(LogicalDevice& logicalDevice);
-		void CleanupIndexBuffers(LogicalDevice& logicalDevice);
-		void CleanupVertexBuffers(LogicalDevice& logicalDevice);
-		
+		VkBuffer& GetVertexBuffer();
+		VkBuffer& GetIndexBuffer();		
+		std::vector<uint32_t>& GetIndices();
 
 	private:
 		std::string m_modelPath;

@@ -1,5 +1,6 @@
 #pragma once
 #include "GraphicsPipeline.h"
+#include "PhysicalDevice.h"
 #include "LogicalDevice.h"
 #include "WinSys.h"
 #include "RenderPass.h"
@@ -21,25 +22,27 @@ namespace VCore
 		Material(std::string vertexPath, std::string fragmentPath);
 		Material();
 		~Material();
+		void CleanupGraphicsPipeline(LogicalDevice& logicalDevice);
+		void CleanupDescriptorSetLayout(LogicalDevice& logicalDevice);		
+		void CleanupTextures(LogicalDevice& logicalDevice);
 
+		void CreateMaterialResources(WinSys& winSystem, VkCommandPool commandPool, RenderPass& renderPass, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void SetVertexPath(std::string path);
 		void SetFragmentPath(std::string path);
 		void CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass);
 		VkPipeline& GetGraphicsPipeline();
 		VkPipelineLayout& GetPipelineLayout();
-		void CreateDescriptorSetLayout(std::vector<Texture>& textures, LogicalDevice& logicalDevice);
+		void CreateDescriptorSetLayout(LogicalDevice& logicalDevice);
 		VkDescriptorSetLayout& GetDescriptorSetLayout();
-		std::vector<VkDescriptorSet>& GetDescriptorSets();
-		void CreateDescriptorPool(std::vector<Texture> &textures, LogicalDevice& logicalDevice);
-		void CreateDescriptorSets(std::vector<Texture> &textures, Model& model, LogicalDevice& logicalDevice);
-		void CleanupGraphicsPipeline(LogicalDevice& logicalDevice);
-		void CleanupDescriptorSetLayout(LogicalDevice& logicalDevice);
-		void CleanupDescriptorPool(LogicalDevice& logicalDevice);
+		void CreateDescriptorPool(VkDescriptorPool& descriptorPool, LogicalDevice& logicalDevice);
+		void CreateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets, VkDescriptorPool& descriptorPool, Model& model, LogicalDevice& logicalDevice);
+		void AddTexture(std::string path);
+		std::vector<Texture>& GetTextures();
+		void CreateTextureResources(WinSys& winSystem, VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 
 	private:
 		GraphicsPipeline m_graphicsPipeline;
 		VkDescriptorSetLayout m_descriptorSetLayout;
-		VkDescriptorPool m_descriptorPool;
-		std::vector<VkDescriptorSet> m_descriptorSets;
+		std::vector<Texture> m_textures;
 	};
 }

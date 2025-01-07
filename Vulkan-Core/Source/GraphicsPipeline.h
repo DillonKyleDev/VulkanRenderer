@@ -1,5 +1,4 @@
 #pragma once
-#include "PhysicalDevice.h"
 #include "LogicalDevice.h"
 #include "WinSys.h"
 #include "RenderPass.h"
@@ -19,6 +18,7 @@ namespace VCore
 		GraphicsPipeline(std::string vertexPath, std::string fragmentPath);
 		GraphicsPipeline();
 		~GraphicsPipeline();
+		void Cleanup(LogicalDevice& logicalDevice);
 
 		void SetVertexPath(std::string path);
 		void SetFragmentPath(std::string path);
@@ -26,7 +26,6 @@ namespace VCore
 		void CreateGraphicsPipeline(LogicalDevice& logicalDevice, WinSys& winSystem, RenderPass& renderPass, VkDescriptorSetLayout& descriptorSetLayout);
 		VkPipeline& GetGraphicsPipeline();
 		VkPipelineLayout& GetPipelineLayout();
-		void Cleanup(LogicalDevice& logicalDevice);
 
 	private:
 		VkPipeline m_graphicsPipeline;

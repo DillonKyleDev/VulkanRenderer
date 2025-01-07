@@ -15,6 +15,7 @@ namespace VCore
 	public:
 		Texture();
 		~Texture();
+		void Cleanup(LogicalDevice& logicalDevice);
 
 		void SetTexturePath(std::string path);
 		std::string GetTexturePath();
@@ -25,7 +26,6 @@ namespace VCore
 		uint32_t GetMipLevels();
 		void CreateTextureImage(WinSys& winSystem, VkCommandPool commandPool, PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
 		void CreateTextureSampler(PhysicalDevice& physicalDevice, LogicalDevice& logicalDevice);
-		void Cleanup(LogicalDevice& logicalDevice);
 
 	private:
 		std::string m_texturePath;
